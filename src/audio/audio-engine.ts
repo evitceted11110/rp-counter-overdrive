@@ -23,6 +23,8 @@ type VoiceOptions = {
   gain: number
   at?: number
   endFrequency?: number
+  attack?: number
+  filterFrequency?: number
   pan?: number
   type?: OscillatorType
 }
@@ -46,6 +48,7 @@ export class CounterOverdriveAudio {
   private schedulerId: number | null = null
   private nextStepAt = 0
   private step = 0
+  private bar = 0
   private threat = 0
 
   get tempo(): number {
@@ -68,6 +71,7 @@ export class CounterOverdriveAudio {
     const context = this.context
     if (context === null || this.schedulerId !== null) return
     this.step = 0
+    this.bar = 0
     this.nextStepAt = context.currentTime + 0.04
     this.schedulerId = window.setInterval(() => this.scheduleMusic(), 25)
     this.scheduleMusic()
@@ -86,11 +90,10 @@ export class CounterOverdriveAudio {
   setBusVolume(bus: AudioBus, volume: number): void {
     const normalized = Math.max(0, Math.min(1, volume))
     this.settings = { ...this.settings, [bus]: normalized }
-    this.buses[bus]?.gain.setTargetAtTime(
-      normalized,
-      this.context?.currentTime ?? 0,
-      0.02,
-    )
+    const gain = this.buses[bus]?.gain
+    const now = this.context?.currentTime ?? 0
+    gain?.cancelScheduledValues(now)
+    gain?.setTargetAtTime(normalized, now, 0.02)
   }
 
   setMuted(muted: boolean): void {
@@ -103,6 +106,7 @@ export class CounterOverdriveAudio {
   }
 
   playAttack(direction: Direction, breach: boolean, threat: number): void {
+    this.duckMusic(0.72, breach ? 0.3 : 0.14)
     if (breach) {
       this.chord([116, 174], 0.18, 0.055, 'effects', 'sawtooth')
       this.voice({
@@ -129,6 +133,7 @@ export class CounterOverdriveAudio {
   }
 
   playResolution(grade: CounterGrade): void {
+    this.duckMusic(grade === 'perfect' ? 0.58 : 0.7, 0.24)
     if (grade === 'perfect') {
       this.chord([523.25, 659.25, 783.99], 0.19, 0.062, 'effects', 'triangle')
       this.delayedVoice(0.09, {
@@ -229,12 +234,17 @@ export class CounterOverdriveAudio {
     while (this.nextStepAt < context.currentTime + 0.12) {
       this.scheduleStep(this.step, this.nextStepAt)
       this.nextStepAt += 60 / this.tempo / 4
-      this.step = (this.step + 1) % 16
+      this.step += 1
+      if (this.step >= 16) {
+        this.step = 0
+        this.bar = (this.bar + 1) % 4
+      }
     }
   }
 
   private scheduleStep(step: number, at: number): void {
     const layers = layersForThreat(this.threat)
+    this.scheduleBackgroundMusic(step, at)
     if (layers.includes('低頻脈衝') && step % 8 === 0) {
       this.voice({
         bus: 'music',
@@ -305,6 +315,66 @@ export class CounterOverdriveAudio {
     }
   }
 
+  private scheduleBackgroundMusic(step: number, at: number): void {
+    const harmony = [
+      [50, 53, 57],
+      [46, 50, 53],
+      [41, 48, 53],
+      [48, 52, 55],
+    ] as const
+    const bass = [38, 34, 41, 36] as const
+    const melody = [
+      [69, 72, 74, 69],
+      [65, 69, 70, 69],
+      [69, 72, 77, 76],
+      [67, 72, 76, 72],
+    ] as const
+    if (step === 0) {
+      const chord = harmony[this.bar] ?? harmony[0]
+      const barDuration = (60 / this.tempo) * 3.86
+      chord.forEach((note, index) => {
+        this.voice({
+          bus: 'music',
+          frequency: midiFrequency(note),
+          duration: barDuration,
+          gain: 0.014,
+          at,
+          attack: Math.min(0.12, barDuration * 0.15),
+          filterFrequency: 1350,
+          pan: (index - 1) * 0.34,
+          type: 'triangle',
+        })
+      })
+    }
+    if (step === 0 || step === 8) {
+      this.voice({
+        bus: 'music',
+        frequency: midiFrequency(bass[this.bar] ?? bass[0]),
+        duration: (60 / this.tempo) * 0.72,
+        gain: 0.028,
+        at,
+        attack: 0.018,
+        filterFrequency: 520,
+        type: 'sawtooth',
+      })
+    }
+    if (step === 2 || step === 6 || step === 10 || step === 14) {
+      const phrase = melody[this.bar] ?? melody[0]
+      const note = phrase[Math.floor(step / 4)] ?? phrase[0]
+      this.voice({
+        bus: 'music',
+        frequency: midiFrequency(note),
+        duration: (60 / this.tempo) * 0.28,
+        gain: this.threat >= 3 ? 0.018 : 0.013,
+        at,
+        attack: 0.012,
+        filterFrequency: 2400,
+        pan: step < 8 ? -0.18 : 0.18,
+        type: 'triangle',
+      })
+    }
+  }
+
   private sequence(frequencies: readonly number[], spacing: number, gain: number): void {
     const now = this.context?.currentTime
     if (now === undefined) return
@@ -345,6 +415,16 @@ export class CounterOverdriveAudio {
     this.voice({ ...options, at: now + delay })
   }
 
+  private duckMusic(depth: number, duration: number): void {
+    const context = this.context
+    const music = this.buses.music
+    if (context === null || music === undefined) return
+    const now = context.currentTime
+    music.gain.cancelScheduledValues(now)
+    music.gain.setTargetAtTime(this.settings.music * depth, now, 0.008)
+    music.gain.setTargetAtTime(this.settings.music, now + duration, 0.045)
+  }
+
   private voice(options: VoiceOptions): void {
     const context = this.context
     const bus = this.buses[options.bus]
@@ -353,6 +433,7 @@ export class CounterOverdriveAudio {
     const oscillator = context.createOscillator()
     const envelope = context.createGain()
     const panner = context.createStereoPanner()
+    const filter = context.createBiquadFilter()
     oscillator.type = options.type ?? 'triangle'
     oscillator.frequency.setValueAtTime(Math.max(20, options.frequency), at)
     if (options.endFrequency !== undefined) {
@@ -364,11 +445,15 @@ export class CounterOverdriveAudio {
     envelope.gain.setValueAtTime(0.0001, at)
     envelope.gain.exponentialRampToValueAtTime(
       Math.max(0.0001, options.gain),
-      at + 0.006,
+      at + (options.attack ?? 0.006),
     )
     envelope.gain.exponentialRampToValueAtTime(0.0001, at + options.duration)
     panner.pan.value = options.pan ?? 0
-    oscillator.connect(envelope)
+    filter.type = 'lowpass'
+    filter.frequency.value = options.filterFrequency ?? 18_000
+    filter.Q.value = 0.7
+    oscillator.connect(filter)
+    filter.connect(envelope)
     envelope.connect(panner)
     panner.connect(bus)
     oscillator.start(at)
@@ -377,4 +462,3 @@ export class CounterOverdriveAudio {
 }
 
 export const audioDirector = new CounterOverdriveAudio()
-

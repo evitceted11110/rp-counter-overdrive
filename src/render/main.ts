@@ -155,7 +155,7 @@ root.innerHTML = `
 
     <div class="start-overlay">
       <div class="start-card">
-        <span class="eyebrow">節奏戰鬥版 0.2.0</span>
+        <span class="eyebrow">背景音樂版 0.2.1</span>
         <h1>反擊愈準，世界愈快。</h1>
         <p>觀察攻擊來向與收縮命中環，在撞擊前按下對應方向。紅色破防不可反擊，必須使用相位。</p>
         <div class="start-rules">
