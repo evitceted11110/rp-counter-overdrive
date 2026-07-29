@@ -31,6 +31,15 @@ describe('單畫面繁體中文介面', () => {
     }
   })
 
+  it('使用固定鍵位提示，不以箭頭朝向代表應按方向', () => {
+    for (const key of ['W', 'A', 'S', 'D', 'Shift']) {
+      expect(visibleTemplate).toContain(`<kbd>${key}</kbd>`)
+    }
+    expect(renderSource).toContain("arrow.textContent = ''")
+    expect(renderSource).toContain('directionKey(attack.direction)')
+    expect(styles).toContain('.direction-guide.active')
+  })
+
   it('不直接顯示內部英文遊戲術語', () => {
     for (const banned of [
       '>Threat<',

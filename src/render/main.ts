@@ -62,6 +62,21 @@ root.innerHTML = `
         <div class="counter-ring">
           <div class="player-core"><span>反擊核心</span></div>
         </div>
+        <div class="direction-guides" aria-label="方向按鍵提示">
+          <div class="direction-guide guide-up" data-direction="up">
+            <kbd>W</kbd><span>上</span>
+          </div>
+          <div class="direction-guide guide-right" data-direction="right">
+            <kbd>D</kbd><span>右</span>
+          </div>
+          <div class="direction-guide guide-down" data-direction="down">
+            <kbd>S</kbd><span>下</span>
+          </div>
+          <div class="direction-guide guide-left" data-direction="left">
+            <kbd>A</kbd><span>左</span>
+          </div>
+          <div class="phase-guide"><kbd>Shift</kbd><span>相位</span></div>
+        </div>
         <div class="attack-arrow" aria-hidden="true"></div>
         <div class="attack-card">
           <span class="attack-kind">待機</span>
@@ -204,12 +219,12 @@ function remaining(now: number): number {
   return attackStartedAt + state.currentTelegraphMs - now
 }
 
-function directionGlyph(direction: Direction): string {
+function directionKey(direction: Direction): string {
   return {
-    up: '▼',
-    right: '◀',
-    down: '▲',
-    left: '▶',
+    up: 'W',
+    right: 'D',
+    down: 'S',
+    left: 'A',
   }[direction]
 }
 
@@ -337,8 +352,8 @@ function render(now: number): void {
       0,
       Math.min(1.08, 1 - timeLeft / state.currentTelegraphMs),
     )
-    arrow.textContent = directionGlyph(attack.direction)
-    arrow.className = `attack-arrow direction-${attack.direction} ${
+    arrow.textContent = ''
+    arrow.className = `attack-arrow attack-pulse direction-${attack.direction} ${
       attack.counterable ? 'counterable' : 'breach'
     }`
     placeArrow(attack.direction, progress)
@@ -350,10 +365,12 @@ function render(now: number): void {
     )
     attackKind.textContent = attack.label
     attackDirection.textContent = attack.counterable
-      ? `${directionLabel(attack.direction)}方反擊`
+      ? `按 ${directionKey(attack.direction)}・${directionLabel(attack.direction)}方反擊`
       : '破防・使用相位'
     attackSeries.textContent = attack.seriesLabel ?? ''
-    intelDirection.textContent = directionLabel(attack.direction)
+    intelDirection.textContent = attack.counterable
+      ? `${directionLabel(attack.direction)}方（${directionKey(attack.direction)}）`
+      : '破防（Shift）'
     intelKind.textContent = attack.counterable ? attack.label : '不可反擊'
     intelWindow.textContent =
       timeLeft <= 90
@@ -362,11 +379,29 @@ function render(now: number): void {
           ? '可反擊'
           : `${Math.max(0, Math.ceil(timeLeft))} 毫秒`
 
+    for (const guide of shell.querySelectorAll<HTMLElement>(
+      '.direction-guide',
+    )) {
+      guide.classList.toggle(
+        'active',
+        attack.counterable && guide.dataset.direction === attack.direction,
+      )
+    }
+    query<HTMLElement>('.phase-guide').classList.toggle(
+      'active',
+      !attack.counterable,
+    )
+
     if (timeLeft < -80) {
       resolveInput(timeoutAttack(state), now)
     }
   } else {
     arrow.style.opacity = '0'
+    for (const guide of shell.querySelectorAll<HTMLElement>(
+      '.direction-guide, .phase-guide',
+    )) {
+      guide.classList.remove('active')
+    }
     if (state.stage === 'resolved' && now >= resolveUntil) {
       state = advanceAttack(state)
       attackStartedAt = now

@@ -360,23 +360,128 @@ kbd {
   display: none;
 }
 
+.direction-guides {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 9;
+  width: 250px;
+  aspect-ratio: 1;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.direction-guide,
+.phase-guide {
+  position: absolute;
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  color: #68828b;
+  opacity: 0.36;
+  transition:
+    opacity 80ms linear,
+    color 80ms linear,
+    transform 80ms linear;
+}
+
+.direction-guide kbd,
+.phase-guide kbd {
+  min-width: 30px;
+  border-color: currentColor;
+  background: rgb(4 12 17 / 92%);
+  color: inherit;
+  text-align: center;
+}
+
+.direction-guide span,
+.phase-guide span {
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.direction-guide.active {
+  color: var(--cyan);
+  opacity: 1;
+  filter: drop-shadow(0 0 10px currentColor);
+  transform: scale(1.18);
+}
+
+.guide-up {
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.guide-right {
+  top: 50%;
+  right: 0;
+  flex-direction: row-reverse;
+  transform: translateY(-50%);
+}
+
+.guide-down {
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.guide-left {
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+}
+
+.guide-up.active,
+.guide-down.active {
+  transform: translateX(-50%) scale(1.18);
+}
+
+.guide-right.active,
+.guide-left.active {
+  transform: translateY(-50%) scale(1.18);
+}
+
+.phase-guide {
+  top: 50%;
+  left: 50%;
+  visibility: hidden;
+  color: var(--red);
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.8);
+}
+
+.phase-guide.active {
+  visibility: visible;
+  opacity: 1;
+  filter: drop-shadow(0 0 12px currentColor);
+  transform: translate(-50%, -50%) scale(1.12);
+}
+
 .attack-arrow {
   position: absolute;
   z-index: 7;
   width: 64px;
   color: var(--cyan);
-  font-size: 62px;
-  font-weight: 900;
-  line-height: 1;
-  text-align: center;
-  text-shadow:
-    0 0 8px currentColor,
-    0 0 28px currentColor;
   will-change: left, top, transform;
+}
+
+.attack-pulse {
+  width: 28px;
+  height: 28px;
+  border: 3px solid currentColor;
+  transform-origin: center;
+  background: rgb(101 236 255 / 20%);
+  box-shadow:
+    0 0 8px currentColor,
+    0 0 28px currentColor,
+    inset 0 0 10px currentColor;
+  rotate: 45deg;
 }
 
 .attack-arrow.breach {
   color: var(--red);
+  background: rgb(255 70 100 / 24%);
 }
 
 .attack-card {
