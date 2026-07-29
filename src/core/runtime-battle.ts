@@ -58,6 +58,7 @@ export type TargetSource =
   | 'breaker'
   | 'overload'
   | 'overload-redline'
+  | 'contract-finale'
 
 export type EncounterTarget = {
   id: string
@@ -527,10 +528,55 @@ function isFinalContractTarget(
   state: BattleRuntimeState,
   target: EncounterTarget,
 ): boolean {
+  const remainingTargets = state.targets.slice(state.cursor)
+  const remainingFinaleTargets = remainingTargets.filter(
+    (candidate) => candidate.source === 'contract-finale',
+  )
+  if (remainingFinaleTargets.length > 0) {
+    return (
+      remainingFinaleTargets.length === 1 &&
+      remainingFinaleTargets[0]?.id === target.id
+    )
+  }
   const remainingBaseTargets = state.targets.filter(
     (candidate, index) => index >= state.cursor && candidate.source !== 'overload' && candidate.source !== 'overload-redline' && candidate.source !== 'flywheel' && candidate.source !== 'breaker',
   )
   return remainingBaseTargets.length === 1 && remainingBaseTargets[0]?.id === target.id
+}
+
+/**
+ * 首領生命先被擊穿時，不把它長時間假鎖在 1 HP。保留內容中已預告的
+ * 終局紅線，將未播放的冗長尾段收束成下一小節的短終結樂句。
+ */
+function startContractFinale(
+  state: BattleRuntimeState,
+  targets: readonly EncounterTarget[],
+  current: EncounterTarget,
+): EncounterTarget[] {
+  const redlineTemplate = state.targets.filter(
+    (candidate) =>
+      candidate.source === 'pattern' && candidate.grammar.includes('redline'),
+  )
+  const templateBar = Math.floor((redlineTemplate[0]?.targetBeat ?? 0) / 4)
+  const phrase = redlineTemplate.filter(
+    (candidate) => Math.floor(candidate.targetBeat / 4) === templateBar,
+  )
+  if (phrase.length === 0) return [...targets]
+  const finaleBar = Math.floor(current.targetBeat / 4) + 1
+  const finale = phrase.map((candidate, index) => ({
+    ...candidate,
+    id: `contract-finale-${finaleBar}-${index}`,
+    targetBeat: responseBeatForIndex(finaleBar, index),
+    patternName: `${candidate.patternName}・終結樂句`,
+    source: 'contract-finale' as const,
+  }))
+  return [
+    ...targets.filter((candidate, index) => index <= state.cursor),
+    ...finale,
+  ].sort(
+    (left, right) =>
+      left.targetBeat - right.targetBeat || left.id.localeCompare(right.id),
+  )
 }
 
 function missBattle(
@@ -846,6 +892,11 @@ export function resolveBattleAction(
   }
 
   const kind = target.lane === 'center' ? 'center' : perfect ? 'perfect' : 'normal'
+  const beginsContractFinale =
+    state.bossIntegrity - damage <= 0 && !isFinalContractTarget(state, target)
+  if (beginsContractFinale) {
+    targets = startContractFinale(state, targets, target)
+  }
   const completedRedline =
     state.overloadRedlineBar !== null &&
     targetBar === state.overloadRedlineBar &&
@@ -898,7 +949,12 @@ export function resolveBattleAction(
       timingOffsetMs,
     },
   }
-  if (perfect && nextOverload >= 3 && !completedRedline) {
+  if (
+    perfect &&
+    nextOverload >= 3 &&
+    !completedRedline &&
+    !beginsContractFinale
+  ) {
     resolved =
       nextOverload === 5
         ? activateOverloadRedline(resolved, target.targetBeat)

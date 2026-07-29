@@ -273,6 +273,58 @@ describe('資料化戰鬥 runtime core', () => {
     expect(resolved.playerIntegrity).toBe(adjacent.playerIntegrity)
   })
 
+  it('雙軌校準者先被擊穿時會進入短終結樂句，不會長時間卡在 1 HP', () => {
+    const boss1: EncounterDefinition = {
+      ...encounter,
+      id: 'rail-calibrator',
+      encounter: 1,
+      bpm: 120,
+      integrity: 54,
+      maxBars: 36,
+      requiredGrammar: ['single', 'alternating'],
+      redlinePatterns: ['redline-calibration'],
+    }
+    const state = battleWith(
+      [],
+      [
+        target('left', { id: 'break-hit', targetBeat: 4, grammar: ['single'] }),
+        target('right', { id: 'long-tail', targetBeat: 8, grammar: ['alternating'] }),
+        target('left', {
+          id: 'redline-left',
+          targetBeat: 12,
+          grammar: ['redline', 'single', 'alternating'],
+        }),
+        target('right', {
+          id: 'redline-right',
+          targetBeat: 13,
+          grammar: ['redline', 'single', 'alternating'],
+        }),
+      ],
+      { encounter: boss1, bossIntegrity: 1 },
+    )
+
+    let resolved = resolveBattleAction(state, 'left', 0)
+    expect(resolved.bossIntegrity).toBe(1)
+    expect(resolved.targets.slice(resolved.cursor).map((item) => item.source)).toEqual([
+      'contract-finale',
+      'contract-finale',
+    ])
+    expect(resolved.targets[resolved.cursor]?.targetBeat).toBe(10)
+
+    resolved = resolveBattleAction(
+      resolved,
+      resolved.targets[resolved.cursor]?.lane ?? 'left',
+      0,
+    )
+    expect(resolved.bossIntegrity).toBe(1)
+    resolved = resolveBattleAction(
+      resolved,
+      resolved.targets[resolved.cursor]?.lane ?? 'right',
+      0,
+    )
+    expect(resolved.bossIntegrity).toBe(0)
+  })
+
   it('交替核心、交叉導體與同側棘輪會改變傷害或窗口', () => {
     const resonance = effect('alternating-perfect-echo', 'cross-resonance')
     const conductor = effect('opposite-lane-window', 'cross-conductor')

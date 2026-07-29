@@ -165,7 +165,7 @@ root.innerHTML = `
   <section class="game-shell" tabindex="-1" aria-label="反擊超載遊戲">
     <header class="top-hud">
       <div class="brand-block">
-        <span class="eyebrow">三軌節奏隨機冒險 0.3.4</span>
+        <span class="eyebrow">三軌節奏隨機冒險 0.3.5</span>
         <strong>反擊超載</strong>
       </div>
       <div class="run-progress" aria-label="本局進度">
@@ -439,6 +439,11 @@ function renderBuildStage(): void {
     buildStage.innerHTML = '<span>構築會在這裡改寫樂句</span><strong>選擇核心後啟動</strong><small>不是額外按鍵，而是直接改變三軌上的節奏規則</small>'
     return
   }
+  if (battle.targets[battle.cursor]?.source === 'contract-finale') {
+    buildStage.dataset.effect = 'contract-finale'
+    buildStage.innerHTML = '<span>終結樂句・首領結構已擊穿</span><strong>完成紅線收束</strong><small>後續冗長樂句已停止；命中這段已預告的終局紅線即可結算</small>'
+    return
+  }
   const item = activeBuildItem()
   buildStage.dataset.effect = item?.id ?? 'unbound'
   buildStage.innerHTML = item === undefined
@@ -633,7 +638,7 @@ function showChoice(): void {
   renderBuild()
   if (run.phase === 'choose-core') {
     choicePanel.innerHTML = `
-      <span class="choice-kicker">0.3.4 隨機冒險</span>
+      <span class="choice-kicker">0.3.5 隨機冒險</span>
       <h1>選擇本局的反擊規則</h1>
       <p>三個核心都不增加按鍵；它們會被動改寫你追逐的節奏。</p>
       <div class="choice-grid">${run.coreChoices.map((choice) => itemCard(choice, 'core')).join('')}</div>

@@ -138,6 +138,7 @@ describe('0.3.0 單畫面三軌 Rogue 介面', () => {
     for (const marker of [
       'class="build-stage"',
       'function renderBuildStage()',
+      '終結樂句・首領結構已擊穿',
       'function targetBuildClass(',
       'function phrasePreview(',
       'phrase_preview',

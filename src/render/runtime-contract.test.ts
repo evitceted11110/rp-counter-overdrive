@@ -268,6 +268,7 @@ describe('正式 content 與 runtime 契約', () => {
 
   it('測試用自動點擊可沿著目前 target 的 Perfect 計畫完成每一戰', () => {
     for (const encounter of definitions) {
+      let oneIntegrityTargetCount = 0
       let state = createBattleState({
         seed: `autoplay-clear-${encounter.encounter}`,
         encounter,
@@ -284,6 +285,7 @@ describe('正式 content 與 runtime 契約', () => {
       while (state.bossIntegrity > 0) {
         const current = state.targets[state.cursor]
         if (current === undefined) break
+        if (state.bossIntegrity === 1) oneIntegrityTargetCount += 1
         const plan = createAutoClickPlan(
           current,
           current.targetBeat * (60_000 / encounter.bpm),
@@ -294,6 +296,11 @@ describe('正式 content 與 runtime 契約', () => {
       }
       expect(state.bossIntegrity).toBe(0)
       expect(state.playerIntegrity).toBeGreaterThan(0)
+      if (encounter.id === 'rail-calibrator') {
+        // B1 不能在 1/54 後繼續走數十個內容 target；短終結樂句最多
+        // 只保留其紅線的兩顆輸入。
+        expect(oneIntegrityTargetCount).toBeLessThanOrEqual(2)
+      }
     }
   })
 })
