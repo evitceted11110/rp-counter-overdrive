@@ -1,0 +1,33 @@
+{
+  "bosses": [
+    {
+      "id": "prism-supervisor",
+      "name": "棱鏡監工",
+      "base_integrity": 60,
+      "modules": ["direct", "double-pulse", "return"],
+      "teaches": "方向辨識與預先揭露的連擊序列"
+    },
+    {
+      "id": "offbeat-executor",
+      "name": "斷拍執行官",
+      "base_integrity": 78,
+      "modules": ["direct", "delay", "drain"],
+      "teaches": "讀取命中環而非依賴固定節拍"
+    },
+    {
+      "id": "core-director",
+      "name": "熔核董事",
+      "base_integrity": 118,
+      "modules": ["double-pulse", "return", "delay", "breach", "drain"],
+      "teaches": "整合方向、節奏、相位與超載兌現"
+    }
+  ],
+  "attack_modules": [
+    { "id": "direct", "name": "直擊", "counterable": true, "difficulty": 0 },
+    { "id": "double-pulse", "name": "雙脈衝", "counterable": true, "difficulty": 0.04 },
+    { "id": "delay", "name": "延遲", "counterable": true, "difficulty": 0.06 },
+    { "id": "return", "name": "回返", "counterable": true, "difficulty": 0.05 },
+    { "id": "breach", "name": "破防", "counterable": false, "difficulty": 0 },
+    { "id": "drain", "name": "吸能", "counterable": true, "difficulty": 0.08 }
+  ]
+}
