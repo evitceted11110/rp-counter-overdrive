@@ -3,6 +3,7 @@ import {
   advanceAutomaticBattleEffects,
   createBattleState,
   createEncounterTargets,
+  isBattleChartComplete,
   resolveBattleAction,
   type BattleRuntimeState,
   type BuildEffect,
@@ -273,7 +274,7 @@ describe('資料化戰鬥 runtime core', () => {
     expect(resolved.playerIntegrity).toBe(adjacent.playerIntegrity)
   })
 
-  it('雙軌校準者先被擊穿時會進入短終結樂句，不會長時間卡在 1 HP', () => {
+  it('首領擊破後仍保留整張固定譜面，並把其後漏接安全結算為 0 分', () => {
     const boss1: EncounterDefinition = {
       ...encounter,
       id: 'rail-calibrator',
@@ -303,26 +304,42 @@ describe('資料化戰鬥 runtime core', () => {
       { encounter: boss1, bossIntegrity: 1 },
     )
 
+    const originalTimeline = state.targets.map((item) => item.id)
     let resolved = resolveBattleAction(state, 'left', 0)
-    expect(resolved.bossIntegrity).toBe(1)
-    expect(resolved.targets.slice(resolved.cursor).map((item) => item.source)).toEqual([
-      'contract-finale',
-      'contract-finale',
-    ])
-    expect(resolved.targets[resolved.cursor]?.targetBeat).toBe(10)
-
-    resolved = resolveBattleAction(
-      resolved,
-      resolved.targets[resolved.cursor]?.lane ?? 'left',
-      0,
-    )
-    expect(resolved.bossIntegrity).toBe(1)
-    resolved = resolveBattleAction(
-      resolved,
-      resolved.targets[resolved.cursor]?.lane ?? 'right',
-      0,
-    )
     expect(resolved.bossIntegrity).toBe(0)
+    expect(resolved.bossDefeated).toBe(true)
+    expect(resolved.targets.map((item) => item.id)).toEqual(originalTimeline)
+    const integrity = resolved.playerIntegrity
+    resolved = resolveBattleAction(resolved, 'left', 0)
+    expect(resolved.cursor).toBe(2)
+    expect(resolved.playerIntegrity).toBe(integrity)
+    expect(resolved.lastEvent?.damage).toBe(0)
+    expect(resolved.targets.map((item) => item.id)).toEqual(originalTimeline)
+    expect(isBattleChartComplete(resolved)).toBe(false)
+    resolved = resolveBattleAction(resolved, 'left', 0)
+    resolved = resolveBattleAction(resolved, 'right', 0)
+    expect(isBattleChartComplete(resolved)).toBe(true)
+  })
+
+  it('固定計分為 Perfect 2、normal 1、miss 0', () => {
+    const perfect = resolveBattleAction(
+      battleWith([], [target('left')]),
+      'left',
+      0,
+    )
+    const normal = resolveBattleAction(
+      battleWith([], [target('left')]),
+      'left',
+      80,
+    )
+    const miss = resolveBattleAction(
+      battleWith([], [target('left')]),
+      'right',
+      0,
+    )
+    expect(perfect.score).toBe(2)
+    expect(normal.score).toBe(1)
+    expect(miss.score).toBe(0)
   })
 
   it('交替核心、交叉導體與同側棘輪會改變傷害或窗口', () => {
@@ -401,7 +418,7 @@ describe('資料化戰鬥 runtime core', () => {
     expect(syncopated.lastEvent?.triggered).toContain('delay-reed')
   })
 
-  it('穩態飛輪與斷路器會公開改寫未來 target timeline', () => {
+  it('穩態飛輪與斷路器以分數與失誤保護生效，完全不改寫 target timeline', () => {
     const flywheel = effect(
       'forgive-now-add-center-next-bar',
       'steady-flywheel',
@@ -411,13 +428,9 @@ describe('資料化戰鬥 runtime core', () => {
       'left',
       80,
     )
-    expect(pressured.targets.some((item) => item.source === 'flywheel')).toBe(
-      true,
-    )
+    expect(pressured.targets).toEqual([target('left')])
     expect(pressured.lastEvent?.triggered).toContain('steady-flywheel')
-    expectResponseSlots(
-      pressured.targets.filter((item) => item.source === 'flywheel'),
-    )
+    expect(pressured.score).toBe(5)
 
     const breaker = effect(
       'replace-next-bar-with-safe-phrase',
@@ -435,85 +448,9 @@ describe('資料化戰鬥 runtime core', () => {
       0,
     )
     expect(broken.lastEvent?.triggered).toContain('circuit-breaker')
-    expect(broken.lastEvent?.rewrittenFromBeat).toBe(8)
-    expect(
-      broken.targets.filter((item) => item.source === 'breaker'),
-    ).toHaveLength(2)
-    expectResponseSlots(
-      broken.targets.filter((item) => item.source === 'breaker'),
-    )
-  })
-
-  it('飛輪下一小節全完美時取消 Space 壓力並自動翻成 Boss 破綻', () => {
-    const flywheel = effect(
-      'forgive-now-add-center-next-bar',
-      'steady-flywheel',
-    )
-    let state = battleWith(
-      [flywheel],
-      [
-        target('left', { targetBeat: 4 }),
-        target('left', { id: 'next-left', targetBeat: 8 }),
-        target('right', { id: 'next-right', targetBeat: 10 }),
-      ],
-    )
-    state = resolveBattleAction(state, 'left', 80)
-    const pressure = state.targets.find((item) => item.source === 'flywheel')
-    expect(pressure?.lane).toBe('center')
-    expect(pressure?.targetBeat).toBeCloseTo(11.5)
-
-    state = resolveBattleAction(state, 'left', 0)
-    state = resolveBattleAction(state, 'right', 0)
-    const integrityBeforeVulnerability = state.bossIntegrity
-    const flipped = advanceAutomaticBattleEffects(state)
-    expect(flipped.cursor).toBe(state.cursor + 1)
-    expect(flipped.bossIntegrity).toBe(integrityBeforeVulnerability - 4)
-    expect(flipped.lastEvent?.title).toBe('飛輪破綻')
-    expect(flipped.lastEvent?.triggered).toContain('steady-flywheel')
-  })
-
-  it('飛輪下一小節出現普通反擊時保留中央 Space 壓力', () => {
-    const flywheel = effect(
-      'forgive-now-add-center-next-bar',
-      'steady-flywheel',
-    )
-    let state = battleWith(
-      [flywheel],
-      [
-        target('left', { targetBeat: 4 }),
-        target('right', { id: 'next-right', targetBeat: 8 }),
-      ],
-    )
-    state = resolveBattleAction(state, 'left', 80)
-    state = resolveBattleAction(state, 'right', 80)
-    const before = state.cursor
-    const notFlipped = advanceAutomaticBattleEffects(state)
-    expect(notFlipped.cursor).toBe(before)
-    expect(notFlipped.targets[notFlipped.cursor]?.source).toBe('flywheel')
-    expect(
-      resolveBattleAction(notFlipped, 'center', 0).lastEvent?.kind,
-    ).toBe('center')
-  })
-
-  it('斷路器安全句套用 content damage_multiplier 0.75', () => {
-    const breaker = effect(
-      'replace-next-bar-with-safe-phrase',
-      'circuit-breaker',
-    )
-    let state = battleWith(
-      [breaker],
-      [
-        target('left', { targetBeat: 4 }),
-        target('center', { id: 'danger', targetBeat: 8 }),
-      ],
-    )
-    state = resolveBattleAction(state, 'right', 0)
-    const safeTarget = state.targets[state.cursor]
-    expect(safeTarget?.source).toBe('breaker')
-    const bossBefore = state.bossIntegrity
-    state = resolveBattleAction(state, safeTarget?.lane ?? 'left', 0)
-    expect(state.bossIntegrity).toBe(bossBefore - 5)
-    expect(state.lastEvent?.triggered).toContain('circuit-breaker')
+    expect(broken.playerIntegrity).toBe(6)
+    expect(broken.targets.map((item) => item.id)).toEqual(['target-left', 'danger'])
+    expect(advanceAutomaticBattleEffects(broken)).toBe(broken)
   })
 
   it('延遲簧片同一小節最多觸發兩次', () => {
@@ -542,7 +479,7 @@ describe('資料化戰鬥 runtime core', () => {
     expect(state.lastEvent?.triggered).not.toContain('delay-reed')
   })
 
-  it('超載 3–4 增加已公開變體密度；Boss3 的 5 會完整預覽紅線並依成敗回落', () => {
+  it('超載可持續記錄，但不插入、替換或收束既有譜面', () => {
     const boss3: EncounterDefinition = {
       ...encounter,
       id: 'boss-3',
@@ -574,87 +511,8 @@ describe('資料化戰鬥 runtime core', () => {
     })
     state = resolveBattleAction(state, 'left', 0)
     expect(state.overload).toBe(3)
-    expect(state.targets.some((item) => item.source === 'overload')).toBe(true)
-    expectResponseSlots(state.targets.filter((item) => item.source === 'overload'))
-
-    state = {
-      ...battleWith([], baseTargets, {
-        encounter: boss3,
-        overload: 4,
-        teachingEndBeat: 0,
-      }),
-    }
-    state = resolveBattleAction(state, 'left', 0)
-    expect(state.overload).toBe(5)
-    expect(state.targets.filter((item) => item.source === 'overload-redline')).toHaveLength(2)
-    expectResponseSlots(
-      state.targets.filter((item) => item.source === 'overload-redline'),
-    )
-    state = resolveBattleAction(state, state.targets[state.cursor]?.lane ?? 'left', 0)
-    state = resolveBattleAction(state, state.targets[state.cursor]?.lane ?? 'center', 0)
-    expect(state.overload).toBe(3)
-
-    state = {
-      ...battleWith([], baseTargets, {
-        encounter: boss3,
-        overload: 4,
-        teachingEndBeat: 0,
-      }),
-    }
-    state = resolveBattleAction(state, 'left', 0)
+    expect(state.targets).toEqual(baseTargets)
     state = resolveBattleAction(state, 'right', 0)
-    expect(state.overload).toBe(1)
-  })
-
-  it('Boss1/2 的等級 5 紅線同樣完整預告，成功回到 3、miss 回到 1', () => {
-    for (const encounterNumber of [1, 2] as const) {
-      const boss: EncounterDefinition = {
-        ...encounter,
-        id: `boss-${encounterNumber}`,
-        encounter: encounterNumber,
-        maxBars: 12,
-        requiredGrammar: ['center'],
-        redlinePatterns: ['redline-unit'],
-      }
-      const baseTargets = [
-        target('left', { id: 'current', targetBeat: 4, grammar: ['single'] }),
-        target('right', { id: 'future', targetBeat: 8, grammar: ['center'] }),
-        target('left', {
-          id: 'redline-left',
-          targetBeat: 12,
-          patternId: 'redline-unit',
-          grammar: ['redline', 'center'],
-        }),
-        target('center', {
-          id: 'redline-center',
-          targetBeat: 12.5,
-          patternId: 'redline-unit',
-          grammar: ['redline', 'center'],
-        }),
-      ]
-      let state = battleWith([], baseTargets, {
-        encounter: boss,
-        overload: 4,
-        teachingEndBeat: 0,
-      })
-      state = resolveBattleAction(state, 'left', 0)
-      const redline = state.targets.filter(
-        (item) => item.source === 'overload-redline',
-      )
-      expect(redline).toHaveLength(2)
-      expectResponseSlots(redline)
-      state = resolveBattleAction(state, 'left', 0)
-      state = resolveBattleAction(state, 'center', 0)
-      expect(state.overload).toBe(3)
-
-      state = battleWith([], baseTargets, {
-        encounter: boss,
-        overload: 4,
-        teachingEndBeat: 0,
-      })
-      state = resolveBattleAction(state, 'left', 0)
-      state = resolveBattleAction(state, 'right', 0)
-      expect(state.overload).toBe(1)
-    }
+    expect(state.targets).toEqual(baseTargets)
   })
 })

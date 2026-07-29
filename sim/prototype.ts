@@ -61,8 +61,11 @@ type Boss = {
   id: string
   encounter: number
   bpm: number
-  integrity: number
-  max_bars: number
+  fixed_chart: {
+    note_budget: number
+    chart_bars: number
+    defeat_score: number
+  }
   perfect_window_ms: number
   normal_window_ms: number
   opening_patterns: string[]
@@ -349,9 +352,10 @@ function generateEncounterPatterns(
     (sum, id) => sum + getPattern(id).bars,
     0,
   )
-  while (barsUsed < boss.max_bars - reservedBars) {
+  while (barsUsed < boss.fixed_chart.chart_bars - reservedBars) {
     const candidates = pool.filter(
-      (pattern) => barsUsed + pattern.bars <= boss.max_bars - reservedBars,
+      (pattern) =>
+        barsUsed + pattern.bars <= boss.fixed_chart.chart_bars - reservedBars,
     )
     if (candidates.length === 0) break
     const selected = rng.pick(candidates)
@@ -454,7 +458,7 @@ function resolveFight(
   selected: readonly string[],
   playerSkill: number,
 ): FightResult {
-  let bossIntegrity = boss.integrity
+  let bossIntegrity = boss.fixed_chart.defeat_score
   let playerIntegrity = 6
   let protectedMisses = boss.encounter === 1 ? 3 : 0
   let perfect = 0

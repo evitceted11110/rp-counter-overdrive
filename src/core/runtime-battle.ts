@@ -6,13 +6,21 @@ export type EncounterDefinition = {
   name: string
   encounter: 1 | 2 | 3
   bpm: 120 | 132 | 144
-  integrity: number
+  /** Immutable chart contract. `noteBudget` targets are selected before play;
+   * `defeatScore` is the score threshold, not a mutable health pool. */
+  fixedChart?: {
+    noteBudget: number
+    chartBars: number
+    defeatScore: number
+  }
+  /** @deprecated compatibility for older tests/content. */
+  integrity?: number
   normalWindowMs: number
   perfectWindowMs: number
   openingPatterns: readonly string[]
   allowedPatternTags: readonly string[]
-  /** Content contract: the generated phrase sequence must occupy this budget. */
-  maxBars: number
+  /** @deprecated compatibility for older tests/content. */
+  maxBars?: number
   /** Every grammar token is taught by a deterministic, legal phrase. */
   requiredGrammar: readonly string[]
   /** Boss 3 reserves one of these as its final, fully previewed phrase. */
@@ -98,6 +106,10 @@ export type BattleRuntimeState = {
   maxPlayerIntegrity: number
   bossIntegrity: number
   maxBossIntegrity: number
+  /** All resolved inputs contribute score; once the threshold is met, later
+   * score is an overkill bonus while the chart continues unchanged. */
+  score: number
+  bossDefeated: boolean
   overload: number
   combo: number
   lastEvent: BattleRuntimeEvent | null
@@ -138,6 +150,22 @@ function hasEffect(
 
 function value(effect: BuildEffect | undefined, key: string, fallback: number): number {
   return effect?.values[key] ?? fallback
+}
+
+function chartBars(encounter: EncounterDefinition): number {
+  const bars = encounter.fixedChart?.chartBars ?? encounter.maxBars
+  if (typeof bars !== 'number' || !Number.isInteger(bars) || bars <= 0) {
+    throw new Error(`${encounter.id} 缺少有效 fixed_chart.chart_bars`)
+  }
+  return bars
+}
+
+function defeatScore(encounter: EncounterDefinition): number {
+  const score = encounter.fixedChart?.defeatScore ?? encounter.integrity
+  if (typeof score !== 'number' || !Number.isInteger(score) || score <= 0) {
+    throw new Error(`${encounter.id} 缺少有效 fixed_chart.defeat_score`)
+  }
+  return score
 }
 
 function isEligiblePattern(
@@ -215,24 +243,74 @@ export function createEncounterPhraseSequence(
 
   const bars = (phrases: readonly PatternDefinition[]): number =>
     phrases.reduce((total, phrase) => total + phrase.bars, 0)
-  if (bars(selected) + reservedBars > options.encounter.maxBars) {
-    throw new Error(`${options.encounter.id} 開場與教學超過 max_bars`)
+  const totalBars = chartBars(options.encounter)
+  if (bars(selected) + reservedBars > totalBars) {
+    throw new Error(`${options.encounter.id} 開場與教學超過 chart_bars`)
   }
-  while (bars(selected) < options.encounter.maxBars - reservedBars) {
-    const remaining = options.encounter.maxBars - reservedBars - bars(selected)
+  while (bars(selected) < totalBars - reservedBars) {
+    const remaining = totalBars - reservedBars - bars(selected)
     const candidates = (routePreferred.length > 0 ? routePreferred : regularEligible).filter(
       (pattern) => pattern.bars <= remaining,
     )
     if (candidates.length === 0) {
-      throw new Error(`${options.encounter.id} 無法填滿 max_bars`) 
+      throw new Error(`${options.encounter.id} 無法填滿 chart_bars`)
     }
     selected.push(rng.pick(candidates))
   }
   if (redline !== undefined) selected.push(redline)
-  if (bars(selected) !== options.encounter.maxBars) {
-    throw new Error(`${options.encounter.id} phrase sequence 未填滿 max_bars`)
+  if (bars(selected) !== totalBars) {
+    throw new Error(`${options.encounter.id} phrase sequence 未填滿 chart_bars`)
   }
   return selected
+}
+
+/**
+ * A fixed chart may contain more legal content targets than its published
+ * note budget. Keep all required grammar and the complete terminal redline,
+ * then retain the remaining slots at even intervals. This happens once at
+ * encounter creation, never in response to play.
+ */
+function enforceNoteBudget(
+  targets: readonly EncounterTarget[],
+  encounter: EncounterDefinition,
+): EncounterTarget[] {
+  const budget = encounter.fixedChart?.noteBudget
+  if (budget === undefined) return [...targets]
+  if (!Number.isInteger(budget) || budget <= 0) {
+    throw new Error(`${encounter.id} fixed_chart.note_budget 必須為正整數`)
+  }
+  if (targets.length < budget) {
+    throw new Error(`${encounter.id} 合法譜面只有 ${targets.length} 顆，少於 note_budget ${budget}`)
+  }
+  const requiredIds = new Set<string>()
+  for (const grammar of encounter.requiredGrammar) {
+    const taughtBy = targets.find((target) => target.grammar.includes(grammar))
+    if (taughtBy === undefined) {
+      throw new Error(`${encounter.id} 固定譜面缺少必教語法 ${grammar}`)
+    }
+    requiredIds.add(taughtBy.id)
+  }
+  // The final redline is a public promise: trimming its individual notes
+  // would make a complete phrase visually turn into a partial one.
+  for (const target of targets) {
+    if (target.grammar.includes('redline')) requiredIds.add(target.id)
+  }
+  if (requiredIds.size > budget) {
+    throw new Error(`${encounter.id} 必要教學與紅線超過 note_budget`)
+  }
+  const optional = targets.filter((target) => !requiredIds.has(target.id))
+  const optionalSlots = budget - requiredIds.size
+  const chosen = new Set(requiredIds)
+  for (let slot = 0; slot < optionalSlots; slot += 1) {
+    const index = Math.floor((slot * optional.length) / optionalSlots)
+    const target = optional[index]
+    if (target !== undefined) chosen.add(target.id)
+  }
+  const fixed = targets.filter((target) => chosen.has(target.id))
+  if (fixed.length !== budget) {
+    throw new Error(`${encounter.id} 無法組成精確 note_budget`)
+  }
+  return fixed
 }
 
 export function createEncounterTargets(
@@ -316,10 +394,11 @@ export function createEncounterTargets(
     }
     phraseStartBeat += phrase.bars * 4
   }
-  return targets.sort(
+  const sorted = targets.sort(
     (left, right) =>
       left.targetBeat - right.targetBeat || left.id.localeCompare(right.id),
   )
+  return enforceNoteBudget(sorted, options.encounter)
 }
 
 export function createBattleState(
@@ -346,8 +425,10 @@ export function createBattleState(
     cursor: 0,
     playerIntegrity: options.playerIntegrity,
     maxPlayerIntegrity: 6,
-    bossIntegrity: options.encounter.integrity,
-    maxBossIntegrity: options.encounter.integrity,
+    bossIntegrity: defeatScore(options.encounter),
+    maxBossIntegrity: defeatScore(options.encounter),
+    score: 0,
+    bossDefeated: false,
     overload: 0,
     combo: 0,
     lastEvent: null,
@@ -367,6 +448,12 @@ export function createBattleState(
   }
 }
 
+/** The encounter's rhythm contract completes only after every published note
+ * has resolved. Boss defeat alone deliberately does not complete the chart. */
+export function isBattleChartComplete(state: BattleRuntimeState): boolean {
+  return state.cursor >= state.targets.length
+}
+
 function oppositeSide(left: CombatAction | null, right: CombatAction): boolean {
   return (
     (left === 'left' && right === 'right') ||
@@ -374,210 +461,6 @@ function oppositeSide(left: CombatAction | null, right: CombatAction): boolean {
   )
 }
 
-function insertTarget(
-  targets: readonly EncounterTarget[],
-  target: EncounterTarget,
-): EncounterTarget[] {
-  return [...targets, target].sort(
-    (left, right) =>
-      left.targetBeat - right.targetBeat || left.id.localeCompare(right.id),
-  )
-}
-
-function safeNextBar(
-  state: BattleRuntimeState,
-  afterBeat: number,
-): readonly EncounterTarget[] {
-  const nextBar = (Math.floor(afterBeat / 4) + 1) * 4
-  const retained = state.targets.filter(
-    (target, index) =>
-      index <= state.cursor ||
-      target.targetBeat < nextBar ||
-      target.targetBeat >= nextBar + 4,
-  )
-  return [
-    ...retained,
-    {
-      id: `breaker-${state.breakerUses}-${nextBar}-left`,
-      lane: 'left' as const,
-      targetBeat: nextBar + 2,
-      patternId: 'breaker-safe',
-      patternName: '斷路器安全句',
-      grammar: ['single', 'recovery'],
-      source: 'breaker' as const,
-    },
-    {
-      id: `breaker-${state.breakerUses}-${nextBar}-right`,
-      lane: 'right' as const,
-      targetBeat: nextBar + 2.5,
-      patternId: 'breaker-safe',
-      patternName: '斷路器安全句',
-      grammar: ['single', 'recovery'],
-      source: 'breaker' as const,
-    },
-  ].sort((left, right) => left.targetBeat - right.targetBeat)
-}
-
-function responseBeatForIndex(bar: number, index: number): number {
-  return bar * 4 + 2 + index * 0.5
-}
-
-function replaceFutureBar(
-  state: BattleRuntimeState,
-  bar: number,
-  replacements: readonly EncounterTarget[],
-): EncounterTarget[] {
-  return [
-    ...state.targets.filter(
-      (target, index) =>
-        index < state.cursor ||
-        Math.floor(target.targetBeat / 4) !== bar,
-    ),
-    ...replacements,
-  ].sort(
-    (left, right) => left.targetBeat - right.targetBeat || left.id.localeCompare(right.id),
-  )
-}
-
-function nextPressureBar(state: BattleRuntimeState, afterBeat: number): number | null {
-  for (const target of state.targets.slice(state.cursor)) {
-    const bar = Math.floor(target.targetBeat / 4)
-    if (bar * 4 <= Math.max(afterBeat, state.teachingEndBeat)) continue
-    if (state.overloadPressureBars.includes(bar)) continue
-    const barTargets = state.targets.filter(
-      (candidate, index) =>
-        index >= state.cursor && Math.floor(candidate.targetBeat / 4) === bar,
-    )
-    // The terminal content-contract redline is never overwritten by a
-    // temporary overload preview.
-    if (barTargets.some((candidate) => candidate.grammar.includes('redline'))) {
-      continue
-    }
-    return bar
-  }
-  return null
-}
-
-/** Adds one response-slot copy of an already previewed, legal phrase variant. */
-function addOverloadDensity(
-  state: BattleRuntimeState,
-  afterBeat: number,
-): BattleRuntimeState {
-  const bar = nextPressureBar(state, afterBeat)
-  if (bar === null) return state
-  const barTargets = state.targets.filter(
-    (target, index) =>
-      index >= state.cursor && Math.floor(target.targetBeat / 4) === bar,
-  )
-  if (barTargets.length === 0 || barTargets.length >= 4) return state
-  const source = barTargets[0]
-  if (source === undefined) return state
-  const occupied = new Set(barTargets.map((target) => target.targetBeat))
-  const index = [0, 1, 2, 3].find(
-    (slot) => !occupied.has(responseBeatForIndex(bar, slot)),
-  )
-  if (index === undefined) return state
-  const density: EncounterTarget = {
-    ...source,
-    id: `overload-${bar}-${index}`,
-    targetBeat: responseBeatForIndex(bar, index),
-    patternName: `${source.patternName}・超載變體`,
-    source: 'overload',
-  }
-  return {
-    ...state,
-    targets: insertTarget(state.targets, density),
-    overloadPressureBars: [...state.overloadPressureBars, bar],
-  }
-}
-
-/** A level-five redline copies the final legal redline phrase into a future bar. */
-function activateOverloadRedline(
-  state: BattleRuntimeState,
-  afterBeat: number,
-): BattleRuntimeState {
-  if (state.encounter.redlinePatterns.length === 0) return addOverloadDensity(state, afterBeat)
-  const bar = nextPressureBar(state, afterBeat)
-  if (bar === null) return state
-  const template = state.targets.filter(
-    (target) =>
-      target.grammar.includes('redline') && target.source === 'pattern',
-  )
-  if (template.length === 0) return state
-  const templateBar = Math.floor((template[0]?.targetBeat ?? 0) / 4)
-  const phrase = template.filter(
-    (target) => Math.floor(target.targetBeat / 4) === templateBar,
-  )
-  if (phrase.length === 0) return state
-  const redline = phrase.map((target, index) => ({
-    ...target,
-    id: `overload-redline-${bar}-${index}`,
-    targetBeat: responseBeatForIndex(bar, index),
-    patternName: `${target.patternName}・超載紅線`,
-    source: 'overload-redline' as const,
-  }))
-  return {
-    ...state,
-    targets: replaceFutureBar(state, bar, redline),
-    overloadPressureBars: [...state.overloadPressureBars, bar],
-    overloadRedlineBar: bar,
-  }
-}
-
-function isFinalContractTarget(
-  state: BattleRuntimeState,
-  target: EncounterTarget,
-): boolean {
-  const remainingTargets = state.targets.slice(state.cursor)
-  const remainingFinaleTargets = remainingTargets.filter(
-    (candidate) => candidate.source === 'contract-finale',
-  )
-  if (remainingFinaleTargets.length > 0) {
-    return (
-      remainingFinaleTargets.length === 1 &&
-      remainingFinaleTargets[0]?.id === target.id
-    )
-  }
-  const remainingBaseTargets = state.targets.filter(
-    (candidate, index) => index >= state.cursor && candidate.source !== 'overload' && candidate.source !== 'overload-redline' && candidate.source !== 'flywheel' && candidate.source !== 'breaker',
-  )
-  return remainingBaseTargets.length === 1 && remainingBaseTargets[0]?.id === target.id
-}
-
-/**
- * 首領生命先被擊穿時，不把它長時間假鎖在 1 HP。保留內容中已預告的
- * 終局紅線，將未播放的冗長尾段收束成下一小節的短終結樂句。
- */
-function startContractFinale(
-  state: BattleRuntimeState,
-  targets: readonly EncounterTarget[],
-  current: EncounterTarget,
-): EncounterTarget[] {
-  const redlineTemplate = state.targets.filter(
-    (candidate) =>
-      candidate.source === 'pattern' && candidate.grammar.includes('redline'),
-  )
-  const templateBar = Math.floor((redlineTemplate[0]?.targetBeat ?? 0) / 4)
-  const phrase = redlineTemplate.filter(
-    (candidate) => Math.floor(candidate.targetBeat / 4) === templateBar,
-  )
-  if (phrase.length === 0) return [...targets]
-  const finaleBar = Math.floor(current.targetBeat / 4) + 1
-  const finale = phrase.map((candidate, index) => ({
-    ...candidate,
-    id: `contract-finale-${finaleBar}-${index}`,
-    targetBeat: responseBeatForIndex(finaleBar, index),
-    patternName: `${candidate.patternName}・終結樂句`,
-    source: 'contract-finale' as const,
-  }))
-  return [
-    ...targets.filter((candidate, index) => index <= state.cursor),
-    ...finale,
-  ].sort(
-    (left, right) =>
-      left.targetBeat - right.targetBeat || left.id.localeCompare(right.id),
-  )
-}
 
 function missBattle(
   state: BattleRuntimeState,
@@ -590,15 +473,42 @@ function missBattle(
   const targetBar = Math.floor(target.targetBeat / 4)
   const redlineFailed =
     target.source === 'overload-redline' || state.overloadRedlineBar === targetBar
+  // 擊破只結束首領承傷，不會取消已公布的譜面。後續漏接仍要推進
+  // cursor，但不再扣玩家完整度。
+  if (state.bossDefeated) {
+    return {
+      ...state,
+      cursor: state.cursor + 1,
+      combo: 0,
+      previousPerfectLane: null,
+      previousResolvedLane: target.lane,
+      recentPerfect: [],
+      lastEvent: {
+        kind: timeout ? 'timeout' : 'miss',
+        title: timeout ? '擊破後逾時' : '擊破後漏接',
+        detail: '首領已擊破；此音符只計為 0 分，不扣完整度',
+        damage: 0,
+        triggered,
+        timingOffsetMs,
+      },
+    }
+  }
   // 紅線是超載的硬結算：戰 1 的教學保護或空拍保險都不能把
   // 「miss → 1」改成一般失誤的結果。
   if (state.insuranceStacks > 0 && !redlineFailed) {
     triggered.push('rest-insurance')
     const targetBar = Math.floor(target.targetBeat / 4)
+    const earnedScore = 1
+    const bossDefeated =
+      state.bossDefeated || state.bossIntegrity - earnedScore <= 0
     return {
       ...state,
       cursor: state.cursor + 1,
-      bossIntegrity: Math.max(0, state.bossIntegrity - 4),
+      score: state.score + earnedScore,
+      bossDefeated,
+      bossIntegrity: bossDefeated
+        ? 0
+        : Math.max(0, state.bossIntegrity - earnedScore),
       insuranceStacks: state.insuranceStacks - 1,
       previousResolvedLane: target.lane,
       imperfectBars: state.imperfectBars.includes(targetBar)
@@ -607,8 +517,8 @@ function missBattle(
       lastEvent: {
         kind: 'normal',
         title: '空拍保險',
-        detail: '保險把失誤改為普通反擊',
-        damage: 4,
+        detail: '保險把失誤改為普通反擊（1 分）',
+        damage: earnedScore,
         triggered,
         timingOffsetMs,
       },
@@ -627,10 +537,11 @@ function missBattle(
   if (canBreak) triggered.push(breaker.sourceId)
   return {
     ...state,
-    targets: canBreak ? safeNextBar(state, target.targetBeat) : state.targets,
     cursor: state.cursor + 1,
     playerIntegrity: protectedMiss
       ? state.playerIntegrity
+      : canBreak
+        ? state.playerIntegrity
       : Math.max(0, state.playerIntegrity - 1),
     overload: redlineFailed ? 1 : Math.max(0, state.overload - 2),
     combo: 0,
@@ -650,12 +561,11 @@ function missBattle(
         : redlineFailed
           ? '紅線失誤；超載回落至 1'
         : canBreak
-          ? '完整度 -1；斷路器將下一小節改為安全句'
+          ? '斷路器吸收這次失誤；固定譜面不改寫'
           : '完整度 -1，超載下降 2 級',
       damage: 0,
       triggered,
       timingOffsetMs,
-      rewrittenFromBeat: canBreak ? (Math.floor(target.targetBeat / 4) + 1) * 4 : undefined,
     },
   }
 }
@@ -687,11 +597,7 @@ function resolveNearestAdjacentTarget(
   // 這也避免延遲的 timeout callback 把有效的下一拍輸入變成錯軌失誤。
   const afterPreviousMiss = missBattle(state, timingOffsetMs, true)
   const reboundTarget = afterPreviousMiss.targets[afterPreviousMiss.cursor]
-  if (
-    afterPreviousMiss.playerIntegrity <= 0 ||
-    afterPreviousMiss.bossIntegrity <= 0 ||
-    reboundTarget?.id !== next.id
-  ) {
+  if (afterPreviousMiss.playerIntegrity <= 0 || reboundTarget?.id !== next.id) {
     return afterPreviousMiss
   }
   return resolveBattleAction(afterPreviousMiss, action, nextOffsetMs)
@@ -703,7 +609,7 @@ export function resolveBattleAction(
   timingOffsetMs: number,
 ): BattleRuntimeState {
   const target = state.targets[state.cursor]
-  if (target === undefined || state.bossIntegrity <= 0 || state.playerIntegrity <= 0) {
+  if (target === undefined || state.playerIntegrity <= 0) {
     return state
   }
   const crossWindow = hasEffect(state.effects, 'opposite-lane-window')
@@ -764,15 +670,16 @@ export function resolveBattleAction(
 
   const perfect = Math.abs(timingOffsetMs) <= perfectWindow
   const triggered: string[] = []
-  let damage = perfect ? 6 + state.overload * 2 : 4
+  // 基礎計分固定：Perfect 2、其他命中 1、miss 0。構築可提供額外
+  // bonus score，但不再用傷害或新音符改寫譜面。
+  let damage = perfect ? 2 : 1
   let overloadGain = perfect ? 1 : 0
   let capacitorCharges = state.capacitorCharges
   let insuranceStacks = state.insuranceStacks
   let recentPerfect = perfect
     ? [...state.recentPerfect, action].slice(-3)
     : []
-  let targets = state.targets
-  let addedCenterBars = state.addedCenterBars
+  const addedCenterBars = state.addedCenterBars
   let imperfectBars = state.imperfectBars
   let reedTriggersByBar = state.reedTriggersByBar
 
@@ -861,63 +768,26 @@ export function resolveBattleAction(
     'forgive-now-add-center-next-bar',
   )
   if (!perfect && flywheel !== undefined) {
-    const nextBar = Math.floor(target.targetBeat / 4) + 1
-    if (!addedCenterBars.includes(nextBar)) {
-      targets = insertTarget(targets, {
-        id: `flywheel-${nextBar}`,
-        lane: 'center',
-        targetBeat: nextBar * 4 + 3.5,
-        patternId: 'flywheel-pressure',
-        patternName: '飛輪未來壓力',
-        grammar: ['center', 'flywheel'],
-        source: 'flywheel',
-      })
-      addedCenterBars = [...addedCenterBars, nextBar]
-      triggered.push(flywheel.sourceId)
-    }
+    // 原本的「下一小節加壓」會動態插入目標。固定譜面版本改為
+    // 對穩定命中給一次額外分數，保留構築的可觀察收益。
+    damage += value(flywheel, 'vulnerability_damage', 1)
+    triggered.push(flywheel.sourceId)
   }
   if (!perfect && !imperfectBars.includes(targetBar)) {
     imperfectBars = [...imperfectBars, targetBar]
   }
-  const breaker = hasEffect(
-    state.effects,
-    'replace-next-bar-with-safe-phrase',
-  )
-  if (target.source === 'breaker' && breaker !== undefined) {
-    damage = Math.max(
-      1,
-      Math.round(damage * value(breaker, 'damage_multiplier', 0.75)),
-    )
-    triggered.push(breaker.sourceId)
-  }
-
   const kind = target.lane === 'center' ? 'center' : perfect ? 'perfect' : 'normal'
-  const beginsContractFinale =
-    state.bossIntegrity - damage <= 0 && !isFinalContractTarget(state, target)
-  if (beginsContractFinale) {
-    targets = startContractFinale(state, targets, target)
-  }
-  const completedRedline =
-    state.overloadRedlineBar !== null &&
-    targetBar === state.overloadRedlineBar &&
-    !state.targets.some(
-      (candidate, index) =>
-        index > state.cursor &&
-        Math.floor(candidate.targetBeat / 4) === targetBar &&
-        candidate.source === 'overload-redline',
-    )
-  const nextOverload = completedRedline
-    ? 3
-    : Math.min(5, state.overload + overloadGain)
-  let resolved: BattleRuntimeState = {
+  const nextOverload = Math.min(5, state.overload + overloadGain)
+  const earnedScore = damage
+  const bossDefeated = state.bossDefeated || state.bossIntegrity - earnedScore <= 0
+  return {
     ...state,
-    targets,
     cursor: state.cursor + 1,
-    // The content contract must be played through: health can show a near
-    // break, but cannot end a Boss before its required lesson/final redline.
-    bossIntegrity: isFinalContractTarget(state, target)
-      ? Math.max(0, state.bossIntegrity - damage)
-      : Math.max(1, state.bossIntegrity - damage),
+    score: state.score + earnedScore,
+    bossDefeated,
+    bossIntegrity: bossDefeated
+      ? 0
+      : Math.max(0, state.bossIntegrity - earnedScore),
     overload: nextOverload,
     combo: state.combo + 1,
     previousPerfectLane: perfect ? action : null,
@@ -944,51 +814,19 @@ export function resolveBattleAction(
           : perfect
             ? '超載上升'
             : '穩定接下攻擊',
-      damage,
+      damage: earnedScore,
       triggered,
       timingOffsetMs,
     },
   }
-  if (
-    perfect &&
-    nextOverload >= 3 &&
-    !completedRedline &&
-    !beginsContractFinale
-  ) {
-    resolved =
-      nextOverload === 5
-        ? activateOverloadRedline(resolved, target.targetBeat)
-        : addOverloadDensity(resolved, target.targetBeat)
-  }
-  return resolved
 }
 
 export function advanceAutomaticBattleEffects(
   state: BattleRuntimeState,
 ): BattleRuntimeState {
-  const target = state.targets[state.cursor]
-  if (target?.source !== 'flywheel') return state
-  const targetBar = Math.floor(target.targetBeat / 4)
-  if (state.imperfectBars.includes(targetBar)) return state
-  const flywheel = hasEffect(
-    state.effects,
-    'forgive-now-add-center-next-bar',
-  )
-  if (flywheel === undefined) return state
-  const damage = value(flywheel, 'vulnerability_damage', 4)
-  return {
-    ...state,
-    cursor: state.cursor + 1,
-    bossIntegrity: Math.max(0, state.bossIntegrity - damage),
-    lastEvent: {
-      kind: 'center',
-      title: '飛輪破綻',
-      detail: '下一小節全完美，中央壓力翻轉為首領破綻',
-      damage,
-      triggered: [flywheel.sourceId],
-      timingOffsetMs: 0,
-    },
-  }
+  // Kept as a no-op compatibility hook for the renderer. Effects resolve on
+  // their own fixed-chart target and never auto-consume or rewrite a target.
+  return state
 }
 
 export function timeoutBattleTarget(

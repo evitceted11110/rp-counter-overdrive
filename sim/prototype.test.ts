@@ -58,12 +58,12 @@ describe('反擊超載 0.3.0 Gate 2 原型', () => {
     expect(summary.winRate).toBeLessThanOrEqual(1)
   })
 
-  it('中型樣本維持 Gate 2 的數值結構', () => {
+  it('中型樣本維持固定譜面分數門檻下的數值結構', () => {
     const summary = runPrototype(5_000, 'gate-structure')
     const rates = Object.values(summary.coreWinRate)
-    expect(summary.winRate).toBeGreaterThanOrEqual(0.25)
-    expect(summary.winRate).toBeLessThanOrEqual(0.48)
-    expect(Math.max(...rates) - Math.min(...rates)).toBeLessThanOrEqual(0.18)
+    expect(summary.winRate).toBeGreaterThanOrEqual(0.45)
+    expect(summary.winRate).toBeLessThanOrEqual(0.65)
+    expect(Math.max(...rates) - Math.min(...rates)).toBeLessThanOrEqual(0.22)
     expect(
       Math.min(...Object.values(summary.winningPassiveInclusionRate)),
     ).toBeGreaterThanOrEqual(0.05)

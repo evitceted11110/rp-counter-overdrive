@@ -30,7 +30,8 @@ export type RunCatalog = {
 
 export type RunDurationEncounter = {
   bpm: number
-  maxBars: number
+  maxBars?: number
+  fixedChart?: { chartBars: number }
 }
 
 /**
@@ -43,8 +44,11 @@ export function estimateSuccessfulRunDurationMs(
   encounters: readonly RunDurationEncounter[],
 ): number {
   const combatMs = encounters.reduce(
-    (total, encounter) =>
-      total + (encounter.maxBars + 2) * 4 * (60_000 / encounter.bpm),
+    (total, encounter) => {
+      const chartBars = encounter.fixedChart?.chartBars ?? encounter.maxBars
+      if (chartBars === undefined) throw new Error('戰鬥時長缺少 chartBars')
+      return total + (chartBars + 2) * 4 * (60_000 / encounter.bpm)
+    },
     0,
   )
   return Math.round(combatMs + 100_000)

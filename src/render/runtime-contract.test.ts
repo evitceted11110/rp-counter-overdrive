@@ -6,6 +6,7 @@ import {
   createEncounterPhraseSequence,
   createEncounterTargets,
   estimateSuccessfulRunDurationMs,
+  isBattleChartComplete,
   resolveBattleAction,
   type BuildEffect,
   type BuildEffectType,
@@ -22,12 +23,15 @@ const bosses = JSON.parse(
     name: string
     encounter: 1 | 2 | 3
     bpm: 120 | 132 | 144
-    integrity: number
+    fixed_chart: {
+      note_budget: number
+      chart_bars: number
+      defeat_score: number
+    }
     normal_window_ms: number
     perfect_window_ms: number
     opening_patterns: string[]
     allowed_pattern_tags: string[]
-    max_bars: number
     required_grammar: string[]
     redline_patterns?: string[]
   }>
@@ -70,12 +74,15 @@ const definitions: EncounterDefinition[] = bosses.bosses.map((boss) => ({
   name: boss.name,
   encounter: boss.encounter,
   bpm: boss.bpm,
-  integrity: boss.integrity,
+  fixedChart: {
+    noteBudget: boss.fixed_chart.note_budget,
+    chartBars: boss.fixed_chart.chart_bars,
+    defeatScore: boss.fixed_chart.defeat_score,
+  },
   normalWindowMs: boss.normal_window_ms,
   perfectWindowMs: boss.perfect_window_ms,
   openingPatterns: boss.opening_patterns,
   allowedPatternTags: boss.allowed_pattern_tags,
-  maxBars: boss.max_bars,
   requiredGrammar: boss.required_grammar,
   redlinePatterns: boss.redline_patterns ?? [],
 }))
@@ -162,7 +169,7 @@ describe('正式 content 與 runtime 契約', () => {
     }
   })
 
-  it('完整讀取 Boss 契約：開場、必教語法、max_bars 與終局紅線都固定合法', () => {
+  it('完整讀取 Boss 契約：開場、固定譜面長度與終局紅線都固定合法', () => {
     for (const encounter of definitions) {
       const options = {
         seed: `contract-${encounter.encounter}`,
@@ -176,7 +183,7 @@ describe('正式 content 與 runtime 契約', () => {
         encounter.openingPatterns,
       )
       expect(phrases.reduce((total, phrase) => total + phrase.bars, 0)).toBe(
-        encounter.maxBars,
+        encounter.fixedChart?.chartBars,
       )
       const grammar = new Set(phrases.flatMap((phrase) => phrase.grammar))
       expect(encounter.requiredGrammar.every((item) => grammar.has(item))).toBe(true)
@@ -207,10 +214,10 @@ describe('正式 content 與 runtime 契約', () => {
     }
   })
 
-  it('完整成功 Run 的 max_bars 合約估計為 6–8 分鐘，且每戰在終局前不可被提早擊殺', () => {
+  it('完整成功 Run 的固定譜面合約估計為 5–6 分鐘，且擊破後仍要跑完譜面', () => {
     const estimate = estimateSuccessfulRunDurationMs(definitions)
-    expect(estimate).toBeGreaterThanOrEqual(360_000)
-    expect(estimate).toBeLessThanOrEqual(480_000)
+    expect(estimate).toBeGreaterThanOrEqual(300_000)
+    expect(estimate).toBeLessThanOrEqual(360_000)
     for (const encounter of definitions) {
       let state = createBattleState({
         seed: `no-early-${encounter.encounter}`,
@@ -221,13 +228,14 @@ describe('正式 content 與 runtime 契約', () => {
         playerIntegrity: 6,
       })
       const seenGrammar = new Set<string>()
-      while (state.bossIntegrity > 0) {
+      while (!isBattleChartComplete(state)) {
         const current = state.targets[state.cursor]
         if (current === undefined) break
         current.grammar.forEach((grammar) => seenGrammar.add(grammar))
         state = resolveBattleAction(state, current.lane, 0)
       }
       expect(state.bossIntegrity).toBe(0)
+      expect(state.targets).toHaveLength(encounter.fixedChart?.noteBudget ?? -1)
       expect(
         encounter.requiredGrammar.every((grammar) => seenGrammar.has(grammar)),
       ).toBe(true)
@@ -257,7 +265,7 @@ describe('正式 content 與 runtime 契約', () => {
         effects,
         playerIntegrity: 6,
       })
-      while (state.bossIntegrity > 0) {
+      while (!isBattleChartComplete(state)) {
         const current = state.targets[state.cursor]
         if (current === undefined) break
         state = resolveBattleAction(state, current.lane, 0)
@@ -268,7 +276,6 @@ describe('正式 content 與 runtime 契約', () => {
 
   it('測試用自動點擊可沿著目前 target 的 Perfect 計畫完成每一戰', () => {
     for (const encounter of definitions) {
-      let oneIntegrityTargetCount = 0
       let state = createBattleState({
         seed: `autoplay-clear-${encounter.encounter}`,
         encounter,
@@ -282,10 +289,9 @@ describe('正式 content 與 runtime 契約', () => {
         effects: [],
         playerIntegrity: 6,
       })
-      while (state.bossIntegrity > 0) {
+      while (!isBattleChartComplete(state)) {
         const current = state.targets[state.cursor]
         if (current === undefined) break
-        if (state.bossIntegrity === 1) oneIntegrityTargetCount += 1
         const plan = createAutoClickPlan(
           current,
           current.targetBeat * (60_000 / encounter.bpm),
@@ -296,11 +302,7 @@ describe('正式 content 與 runtime 契約', () => {
       }
       expect(state.bossIntegrity).toBe(0)
       expect(state.playerIntegrity).toBeGreaterThan(0)
-      if (encounter.id === 'rail-calibrator') {
-        // B1 不能在 1/54 後繼續走數十個內容 target；短終結樂句最多
-        // 只保留其紅線的兩顆輸入。
-        expect(oneIntegrityTargetCount).toBeLessThanOrEqual(2)
-      }
+      expect(state.cursor).toBe(encounter.fixedChart?.noteBudget ?? -1)
     }
   })
 })

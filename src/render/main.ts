@@ -38,12 +38,15 @@ type RawBoss = {
   name: string
   encounter: 1 | 2 | 3
   bpm: 120 | 132 | 144
-  integrity: number
+  fixed_chart: {
+    note_budget: number
+    chart_bars: number
+    defeat_score: number
+  }
   perfect_window_ms: number
   normal_window_ms: number
   opening_patterns: string[]
   allowed_pattern_tags: string[]
-  max_bars: number
   required_grammar: string[]
   redline_patterns?: string[]
   teaches: string
@@ -104,12 +107,15 @@ const encounters: readonly EncounterDefinition[] = rawBosses.map((boss) => ({
   name: boss.name,
   encounter: boss.encounter,
   bpm: boss.bpm,
-  integrity: boss.integrity,
+  fixedChart: {
+    noteBudget: boss.fixed_chart.note_budget,
+    chartBars: boss.fixed_chart.chart_bars,
+    defeatScore: boss.fixed_chart.defeat_score,
+  },
   normalWindowMs: boss.normal_window_ms,
   perfectWindowMs: boss.perfect_window_ms,
   openingPatterns: boss.opening_patterns,
   allowedPatternTags: boss.allowed_pattern_tags,
-  maxBars: boss.max_bars,
   requiredGrammar: boss.required_grammar,
   redlinePatterns: boss.redline_patterns ?? [],
 }))
@@ -165,7 +171,7 @@ root.innerHTML = `
   <section class="game-shell" tabindex="-1" aria-label="反擊超載遊戲">
     <header class="top-hud">
       <div class="brand-block">
-        <span class="eyebrow">三軌節奏隨機冒險 0.3.5</span>
+        <span class="eyebrow">三軌節奏隨機冒險 0.4.0</span>
         <strong>反擊超載</strong>
       </div>
       <div class="run-progress" aria-label="本局進度">
@@ -175,9 +181,13 @@ root.innerHTML = `
         <i></i><span class="run-node">戰 3</span>
       </div>
       <div class="boss-panel">
-        <span class="boss-name">等待選擇核心</span>
-        <div class="bar boss-bar"><i></i></div>
-        <b class="boss-value">—</b>
+        <div class="boss-line">
+          <span class="boss-name">等待選擇核心</span>
+          <div class="bar boss-bar"><i></i></div>
+          <b class="boss-value">—</b>
+        </div>
+        <div class="score-line"><span>擊破分數</span><b class="score-value">—</b></div>
+        <div class="chart-line"><span>固定譜面</span><b class="chart-value">—</b><small class="bonus-value">擊破後加分：0</small></div>
       </div>
     </header>
 
@@ -287,6 +297,9 @@ const choicePanel = query<HTMLElement>('.choice-panel')
 const bossName = query<HTMLElement>('.boss-name')
 const bossBar = query<HTMLElement>('.boss-bar i')
 const bossValue = query<HTMLElement>('.boss-value')
+const scoreValue = query<HTMLElement>('.score-value')
+const chartValue = query<HTMLElement>('.chart-value')
+const bonusValue = query<HTMLElement>('.bonus-value')
 const integrityPips = query<HTMLElement>('.integrity-pips')
 const overloadValue = query<HTMLElement>('.overload-value')
 const comboValue = query<HTMLElement>('.combo-value')
@@ -327,6 +340,38 @@ let ending: { won: boolean; finishAt: number } | null = null
 let endingTimeoutId: number | null = null
 let autoClickEnabled = false
 let autoClickTimeoutId: number | null = null
+
+type FixedChartStatus = {
+  score: number
+  defeatThreshold: number
+  bossDefeated: boolean
+  chartResolvedNotes: number
+  chartTotalNotes: number
+  bonusScore: number
+}
+
+/**
+ * The chart contract is authored in content and locked before the encounter
+ * starts. Progress therefore comes from the resolved cursor, never a
+ * dynamically shortened target list or the old mutable integrity meter.
+ */
+function fixedChartStatus(state: BattleRuntimeState): FixedChartStatus {
+  const chart = state.encounter.fixedChart
+  if (chart === undefined) {
+    throw new Error(`${state.encounter.id} 缺少固定譜面定義`)
+  }
+  const bonusScore = state.bossDefeated
+    ? Math.max(0, state.score - chart.defeatScore)
+    : 0
+  return {
+    score: state.score,
+    defeatThreshold: chart.defeatScore,
+    bossDefeated: state.bossDefeated,
+    chartResolvedNotes: state.cursor,
+    chartTotalNotes: chart.noteBudget,
+    bonusScore,
+  }
+}
 
 function currentEncounter(): EncounterDefinition {
   const encounter = encounters.find((item) => item.encounter === run.encounter)
@@ -437,6 +482,12 @@ function renderBuildStage(): void {
   if (battle === null) {
     buildStage.dataset.effect = 'idle'
     buildStage.innerHTML = '<span>構築會在這裡改寫樂句</span><strong>選擇核心後啟動</strong><small>不是額外按鍵，而是直接改變三軌上的節奏規則</small>'
+    return
+  }
+  if (fixedChartStatus(battle).bossDefeated) {
+    buildStage.dataset.effect = 'boss-defeated'
+    buildStage.innerHTML =
+      '<span>首領已擊破・固定譜面繼續</span><strong>把剩餘音符轉成額外分數</strong><small>音符已預告就必須打完；現在每一次命中都只會增加結算加分。</small>'
     return
   }
   if (battle.targets[battle.cursor]?.source === 'contract-finale') {
@@ -638,7 +689,7 @@ function showChoice(): void {
   renderBuild()
   if (run.phase === 'choose-core') {
     choicePanel.innerHTML = `
-      <span class="choice-kicker">0.3.5 隨機冒險</span>
+      <span class="choice-kicker">0.4.0 隨機冒險</span>
       <h1>選擇本局的反擊規則</h1>
       <p>三個核心都不增加按鍵；它們會被動改寫你追逐的節奏。</p>
       <div class="choice-grid">${run.coreChoices.map((choice) => itemCard(choice, 'core')).join('')}</div>
@@ -851,7 +902,7 @@ function scheduleCurrentTimeout(): void {
         lastEvent: {
           kind: 'timeout',
           title: '樂句耗盡',
-          detail: '未能在最大樂句長度內崩解首領',
+          detail: '未能在固定譜面內達成擊破分數',
           damage: 0,
           triggered: [],
           timingOffsetMs: 0,
@@ -932,7 +983,10 @@ function afterResolution(targetAtPerformanceMs?: number): void {
     battle = automatic
     announceBattleEvent(targetAtPerformanceMs)
   }
-  if (battle.playerIntegrity <= 0 || battle.bossIntegrity <= 0) {
+  // 首領分數達標後，譜面仍是固定的：已經出現或已預告的音符必須完整
+  // 結算。只有玩家核心歸零才會中斷；最後一顆目標結算後則由
+  // scheduleCurrentTimeout() 進入終曲。
+  if (battle.playerIntegrity <= 0) {
     endEncounter()
     return
   }
@@ -1083,6 +1137,9 @@ function restartRun(): void {
   bossName.textContent = '等待選擇核心'
   bossBar.style.width = '0%'
   bossValue.textContent = '—'
+  scoreValue.textContent = '—'
+  chartValue.textContent = '—'
+  bonusValue.textContent = '擊破後加分：0'
   showChoice()
 }
 
@@ -1198,8 +1255,16 @@ function render(now: number): void {
   if (battle !== null && transport !== null && ending === null) {
     const current = battle.targets[battle.cursor]
     const beat = transport.position.beat
-    bossBar.style.width = `${(battle.bossIntegrity / battle.maxBossIntegrity) * 100}%`
-    bossValue.textContent = `${battle.bossIntegrity} / ${battle.maxBossIntegrity}`
+    const chart = fixedChartStatus(battle)
+    const defeatProgress = Math.min(1, chart.score / Math.max(1, chart.defeatThreshold))
+    bossBar.style.width = `${defeatProgress * 100}%`
+    bossValue.textContent = chart.bossDefeated ? '已擊破' : `${chart.score} / ${chart.defeatThreshold}`
+    scoreValue.textContent = `${chart.score} / ${chart.defeatThreshold}`
+    chartValue.textContent = `${chart.chartResolvedNotes} / ${chart.chartTotalNotes}`
+    bonusValue.textContent = chart.bossDefeated
+      ? `擊破後加分：+${chart.bonusScore}`
+      : '擊破後加分：尚未解鎖'
+    shell.classList.toggle('boss-defeated', chart.bossDefeated)
     currentLane.textContent = laneLabel(current?.lane)
     nextPattern.textContent = current?.patternName ?? '戰鬥完成'
     phraseLabel.textContent = current?.grammar.includes('syncopated')
@@ -1238,6 +1303,7 @@ function render(now: number): void {
       .join('')
   } else {
     targetLayer.innerHTML = ''
+    if (battle === null) shell.classList.remove('boss-defeated')
   }
 
   const event = battle?.lastEvent

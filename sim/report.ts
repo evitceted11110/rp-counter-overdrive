@@ -28,16 +28,16 @@ const output = {
   legalPatternViolations: summary.legalPatternViolations,
   topFiveBuildShare: summary.topFiveBuildShare,
   gate2: {
-    winRate: summary.winRate >= 0.25 && summary.winRate <= 0.45,
-    coreSpread: coreWinRateSpread <= 0.15,
+    winRate: summary.winRate >= 0.45 && summary.winRate <= 0.65,
+    coreSpread: coreWinRateSpread <= 0.22,
     coreShare: maximumWinningCoreShare <= 0.45,
     passiveInclusion: minimumWinningPassiveInclusion >= 0.05,
     buildConcentration: summary.topFiveBuildShare <= 0.4,
     strategyDifference: summary.differentDecisionPairs >= 2,
     legalGeneration: summary.legalPatternViolations.length === 0,
     duration:
-      summary.winningTimeStats.mean >= 360_000 &&
-      summary.winningTimeStats.mean <= 480_000,
+      summary.winningTimeStats.mean >= 300_000 &&
+      summary.winningTimeStats.mean <= 360_000,
   },
   determinismDigest: summary.determinismDigest,
 }

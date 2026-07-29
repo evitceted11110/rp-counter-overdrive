@@ -134,6 +134,29 @@ describe('0.3.0 單畫面三軌 Rogue 介面', () => {
     expect(styles).toContain('.game-shell.is-ending .boss-art')
   })
 
+  it('固定譜面以分數擊破首領：擊破後保留所有剩餘音符並將命中轉為加分', () => {
+    for (const marker of [
+      '擊破分數',
+      '固定譜面',
+      '擊破後加分：0',
+      'function fixedChartStatus(',
+      'const chart = state.encounter.fixedChart',
+      'score: state.score',
+      'bossDefeated: state.bossDefeated',
+      'chartResolvedNotes: state.cursor',
+      'chartTotalNotes: chart.noteBudget',
+      'Math.max(0, state.score - chart.defeatScore)',
+      "bossValue.textContent = chart.bossDefeated ? '已擊破'",
+      'if (battle.playerIntegrity <= 0)',
+      'scheduleCurrentTimeout() 進入終曲',
+      '把剩餘音符轉成額外分數',
+    ]) {
+      expect(renderSource).toContain(marker)
+    }
+    expect(styles).toContain('.game-shell.boss-defeated .boss-value')
+    expect(styles).toContain(".build-stage[data-effect='boss-defeated']")
+  })
+
   it('在選擇與戰場中央都把構築翻成可見的樂句改寫', () => {
     for (const marker of [
       'class="build-stage"',

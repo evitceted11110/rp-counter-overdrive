@@ -1,10 +1,17 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "run": {
     "encounters": 3,
-    "target_duration_minutes": [6, 8],
+    "target_duration_minutes": [5, 6],
     "passives_per_run": 2,
-    "route_choice_after_encounter": 1
+    "route_choice_after_encounter": 1,
+    "scoring": {
+      "perfect_points": 2,
+      "normal_points": 1,
+      "miss_points": 0,
+      "bonus_score_after_defeat": true,
+      "description": "每戰在倒數前鎖定完整譜面。分數達擊破門檻後，剩餘音符照原順序演奏並累積額外分數；其間失誤不再造成玩家完整度傷害。"
+    }
   },
   "routes": [
     {
@@ -13,11 +20,11 @@
       "public_tags": ["同側二連", "八分交替"],
       "pattern_tags": ["repeat", "alternating"],
       "reward_families": ["alternating", "repeat", "recovery"],
-      "phrase_preview": {
-        "baseline": ["left", "rest", "right", "rest"],
-        "rewritten": ["left", "repeat-left", "right", "rest"],
+      "score_preview": {
+        "sequence": ["left", "left", "right", "rest"],
         "operation": ["←", "←", "→", "無需按鍵"],
-        "central_cue": "同側二連",
+        "central_cue": "連打加分",
+        "scoring_focus": "同側二連與八分交替的加分模組較常適用。",
         "promise": "同側二連、八分交替較常出現；不是固定順序。"
       }
     },
@@ -27,11 +34,11 @@
       "public_tags": ["中央重拍", "標記空拍"],
       "pattern_tags": ["charge", "center"],
       "reward_families": ["charge", "sequence", "syncopated"],
-      "phrase_preview": {
-        "baseline": ["left", "rest", "center", "rest"],
-        "rewritten": ["left", "charge-center", "rest", "center"],
+      "score_preview": {
+        "sequence": ["left", "center", "rest", "center"],
         "operation": ["←", "Space", "無需按鍵", "Space"],
-        "central_cue": "空拍蓄能",
+        "central_cue": "重拍蓄能",
+        "scoring_focus": "中央重拍、標記空拍與三軌序列的加分模組較常適用。",
         "promise": "中央重拍、標記空拍較常出現；不是固定順序。"
       }
     }
@@ -42,8 +49,15 @@
       "name": "雙軌校準者",
       "encounter": 1,
       "bpm": 120,
-      "integrity": 54,
-      "max_bars": 36,
+      "fixed_chart": {
+        "note_budget": 50,
+        "chart_bars": 32,
+        "defeat_score": 36,
+        "maximum_base_score": 100,
+        "post_defeat": "bonus-coda"
+      },
+      "integrity": 36,
+      "max_bars": 32,
       "perfect_window_ms": 60,
       "normal_window_ms": 140,
       "opening_patterns": ["calibration-left", "calibration-right"],
@@ -58,8 +72,15 @@
       "name": "重拍執行官",
       "encounter": 2,
       "bpm": 132,
-      "integrity": 85,
-      "max_bars": 44,
+      "fixed_chart": {
+        "note_budget": 72,
+        "chart_bars": 40,
+        "defeat_score": 62,
+        "maximum_base_score": 144,
+        "post_defeat": "bonus-coda"
+      },
+      "integrity": 62,
+      "max_bars": 40,
       "perfect_window_ms": 50,
       "normal_window_ms": 120,
       "opening_patterns": ["center-anchor-left", "center-anchor-right"],
@@ -74,8 +95,15 @@
       "name": "核心監督者",
       "encounter": 3,
       "bpm": 144,
-      "integrity": 115,
-      "max_bars": 60,
+      "fixed_chart": {
+        "note_budget": 96,
+        "chart_bars": 48,
+        "defeat_score": 92,
+        "maximum_base_score": 192,
+        "post_defeat": "bonus-coda"
+      },
+      "integrity": 92,
+      "max_bars": 48,
       "perfect_window_ms": 45,
       "normal_window_ms": 100,
       "opening_patterns": ["side-call-response", "center-anchor-left"],
