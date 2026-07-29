@@ -1,33 +1,75 @@
 {
-  "bosses": [
+  "schema_version": 2,
+  "run": {
+    "encounters": 3,
+    "target_duration_minutes": [6, 8],
+    "passives_per_run": 2,
+    "route_choice_after_encounter": 1
+  },
+  "routes": [
     {
-      "id": "prism-supervisor",
-      "name": "棱鏡監工",
-      "base_integrity": 60,
-      "modules": ["direct", "double-pulse", "return"],
-      "teaches": "方向辨識與預先揭露的連擊序列"
+      "id": "repeat-route",
+      "name": "連打迴路",
+      "public_tags": ["同側二連", "八分交替"],
+      "pattern_tags": ["repeat", "alternating"],
+      "reward_families": ["alternating", "repeat", "recovery"]
     },
     {
-      "id": "offbeat-executor",
-      "name": "斷拍執行官",
-      "base_integrity": 78,
-      "modules": ["direct", "delay", "drain"],
-      "teaches": "讀取命中環而非依賴固定節拍"
-    },
-    {
-      "id": "core-director",
-      "name": "熔核董事",
-      "base_integrity": 118,
-      "modules": ["double-pulse", "return", "delay", "breach", "drain"],
-      "teaches": "整合方向、節奏、相位與超載兌現"
+      "id": "charge-route",
+      "name": "蓄能迴路",
+      "public_tags": ["中央重拍", "標記空拍"],
+      "pattern_tags": ["charge", "center"],
+      "reward_families": ["charge", "sequence", "syncopated"]
     }
   ],
-  "attack_modules": [
-    { "id": "direct", "name": "直擊", "counterable": true, "difficulty": 0 },
-    { "id": "double-pulse", "name": "雙脈衝", "counterable": true, "difficulty": 0.04 },
-    { "id": "delay", "name": "延遲", "counterable": true, "difficulty": 0.06 },
-    { "id": "return", "name": "回返", "counterable": true, "difficulty": 0.05 },
-    { "id": "breach", "name": "破防", "counterable": false, "difficulty": 0 },
-    { "id": "drain", "name": "吸能", "counterable": true, "difficulty": 0.08 }
+  "bosses": [
+    {
+      "id": "rail-calibrator",
+      "name": "雙軌校準者",
+      "encounter": 1,
+      "bpm": 120,
+      "integrity": 54,
+      "max_bars": 36,
+      "perfect_window_ms": 60,
+      "normal_window_ms": 140,
+      "opening_patterns": ["calibration-left", "calibration-right"],
+      "required_grammar": ["single", "alternating"],
+      "allowed_pattern_tags": ["calibration", "alternating"],
+      "redline_patterns": ["redline-calibration"],
+      "teaches": "先建立固定拍，再學習左右軌與交替句。",
+      "protection": "前三次失誤只中斷配器，不扣完整度。"
+    },
+    {
+      "id": "downbeat-enforcer",
+      "name": "重拍執行官",
+      "encounter": 2,
+      "bpm": 132,
+      "integrity": 85,
+      "max_bars": 44,
+      "perfect_window_ms": 50,
+      "normal_window_ms": 120,
+      "opening_patterns": ["center-anchor-left", "center-anchor-right"],
+      "required_grammar": ["center", "repeat", "eighth-pair", "rest"],
+      "allowed_pattern_tags": ["alternating", "repeat", "charge", "center"],
+      "redline_patterns": ["redline-downbeat"],
+      "teaches": "加入中央重拍，再依路線學習八分二連或標記休止格。",
+      "protection": "每小節最多一組八分二連，且不出現切分。"
+    },
+    {
+      "id": "core-supervisor",
+      "name": "核心監督者",
+      "encounter": 3,
+      "bpm": 144,
+      "integrity": 115,
+      "max_bars": 60,
+      "perfect_window_ms": 45,
+      "normal_window_ms": 100,
+      "opening_patterns": ["side-call-response", "center-anchor-left"],
+      "required_grammar": ["center", "eighth-chain", "syncopated", "redline"],
+      "allowed_pattern_tags": ["alternating", "repeat", "charge", "center", "syncopated"],
+      "redline_patterns": ["redline-cross", "redline-capacitor"],
+      "teaches": "整合三軌，依路線深化連續八分或切分，最後完整預告紅線小節。",
+      "protection": "每拍最多兩個目標，連續八分目標不超過四個。"
+    }
   ]
 }

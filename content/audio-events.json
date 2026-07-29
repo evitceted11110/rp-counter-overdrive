@@ -1,57 +1,82 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "game": "counter-overdrive",
+  "clock": {
+    "subdivision": "eighth",
+    "timeSignature": "4/4",
+    "sectionBars": 8,
+    "tempoByTier": [120, 132, 144],
+    "barPhases": [
+      "call",
+      "call",
+      "call",
+      "pickup",
+      "response",
+      "response",
+      "response",
+      "turnaround"
+    ]
+  },
   "events": {
-    "battle.start": {
-      "bus": "interface",
-      "cue": "三音上行啟動",
-      "visualFallback": "開始覆蓋層淡出"
+    "battle.transport.start": {
+      "bus": "music",
+      "cue": "共享八分拍格與節拍骨架",
+      "api": "startTransport",
+      "visualFallback": "四拍倒數與八分拍格游標"
     },
-    "attack.telegraph": {
+    "boss.call.left": {
       "bus": "effects",
-      "cue": "方向聲像短脈衝",
-      "visualFallback": "固定鍵位高亮與能量脈衝"
+      "cue": "左聲像低 tom 加低頻瞬態",
+      "api": "scheduleBossCall",
+      "visualFallback": "左軌與左鍵符號"
     },
-    "attack.breach": {
+    "boss.call.right": {
       "bus": "effects",
-      "cue": "低頻雙音破防警報",
-      "visualFallback": "紅色破防、Shift 相位提示"
+      "cue": "右聲像高 rim/tom 加高頻瞬態",
+      "api": "scheduleBossCall",
+      "visualFallback": "右軌與右鍵符號"
+    },
+    "boss.call.center": {
+      "bus": "effects",
+      "cue": "置中 metal slam、sub 與雙 pickup",
+      "api": "scheduleBossCall",
+      "visualFallback": "中央紅軌與空白鍵符號"
     },
     "counter.normal": {
       "bus": "effects",
-      "cue": "金屬感上揚",
-      "visualFallback": "普通反擊文字與傷害數字"
+      "cue": "乾燥 lane hit，填入 response 空位",
+      "api": "playCounterHit",
+      "visualFallback": "軌道命中與普通反擊文字"
     },
     "counter.perfect": {
       "bus": "effects",
-      "cue": "明亮三和弦與高音尾奏",
-      "visualFallback": "青色全畫面閃光與完美反擊文字"
+      "cue": "lane hit、五度和弦與下一八分答句",
+      "api": "playCounterHit",
+      "visualFallback": "完美閃光、傷害與連段"
     },
     "counter.miss": {
       "bus": "effects",
-      "cue": "低頻失諧撞擊",
-      "visualFallback": "紅色閃光、完整度下降"
+      "cue": "muted thud 並保留配器空拍",
+      "api": "playCounterHit",
+      "visualFallback": "失誤文字、軌道斷裂與完整度下降"
     },
-    "phase.success": {
+    "module.response": {
       "bus": "effects",
-      "cue": "左右交錯掃頻",
-      "visualFallback": "紫色相位成功文字"
-    },
-    "core.release": {
-      "bus": "effects",
-      "cue": "低頻和弦與下墜掃頻",
-      "visualFallback": "琥珀色閃光與制動釋放文字"
+      "cue": "依模組契約量化的受控答句",
+      "api": "playModuleResponse",
+      "visualFallback": "模組卡連線至觸發拍格"
     },
     "battle.victory": {
       "bus": "interface",
       "cue": "四音上行終止式",
+      "api": "playInterface",
       "visualFallback": "勝利結算覆蓋層"
     },
     "battle.defeat": {
       "bus": "interface",
       "cue": "四音下行離線動機",
+      "api": "playInterface",
       "visualFallback": "失敗結算覆蓋層"
     }
   }
 }
-

@@ -2,11 +2,15 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "resolveJsonModule": true,
     "types": ["node", "vite/client"]
   },
   "include": [
     "src/audio/**/*.ts",
+    "src/core/**/*.ts",
+    "src/input/**/*.ts",
     "src/render/**/*.ts",
+    "src/transport/**/*.ts",
     "src/visual/**/*.ts",
     "sim/**/*.ts",
     "vite.config.ts",

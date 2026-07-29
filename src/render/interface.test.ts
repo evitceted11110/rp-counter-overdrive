@@ -7,9 +7,9 @@ const renderSource = readFileSync(
 )
 const styles = readFileSync(new URL('./styles.css', import.meta.url), 'utf8')
 const visibleTemplate =
-  renderSource.match(/root\.innerHTML = `([\s\S]*?)`\n\nconst query/)?.[1] ?? ''
+  renderSource.match(/root\.innerHTML = `([\s\S]*?)`\n\nfunction query/)?.[1] ?? ''
 
-describe('單畫面繁體中文介面', () => {
+describe('0.3.0 單畫面三軌 Rogue 介面', () => {
   it('鎖定 viewport 並禁止頁面滾動', () => {
     expect(styles).toContain('html,\nbody,\n#app')
     expect(styles).toContain('overflow: hidden;')
@@ -17,56 +17,85 @@ describe('單畫面繁體中文介面', () => {
     expect(styles).toContain('min-width: 960px;')
   })
 
-  it('主要操作、狀態與結算均使用繁體中文', () => {
+  it('固定顯示左、中央、右三軌與繁體中文戰鬥資訊', () => {
     for (const label of [
-      '威脅階級',
-      '完整度',
-      '相位',
-      '反擊窗口',
-      '制動核心',
-      '方向反擊',
-      '音訊設定',
-      '全部靜音',
-      '音樂',
-      '效果',
-      '介面',
-      '重新挑戰',
+      '左軌',
+      '中央重拍',
+      '右軌',
+      '核心完整度',
+      '超載',
+      '連段',
+      '判定窗口',
+      '下一樂句',
+      '起始核心',
+      '模組 1',
+      '模組 2',
     ]) {
       expect(visibleTemplate).toContain(label)
     }
+    for (const key of ['←', '空白', '→']) {
+      expect(visibleTemplate).toContain(`<kbd>${key}</kbd>`)
+    }
   })
 
-  it('音訊需由玩家操作解鎖，並提供三組音量與全域靜音', () => {
-    expect(renderSource).toContain("await audioDirector.unlock()")
-    expect(renderSource).toContain("audioDirector.startMusic()")
-    expect(renderSource.indexOf('await audioDirector.unlock()')).toBeLessThan(
-      renderSource.indexOf('audioDirector.startMusic()'),
-    )
+  it('不保留 WASD、Shift 或 event.key 戰鬥輸入', () => {
+    expect(visibleTemplate).not.toContain('WASD')
+    expect(visibleTemplate).not.toContain('Shift')
+    expect(renderSource).not.toContain('event.key')
+    expect(renderSource).toContain('routeCombatKeyboardEvent')
+    for (const internalEnglish of ['Rogue Run', 'RUN 完成', 'Run seed']) {
+      expect(visibleTemplate).not.toContain(internalEnglish)
+    }
+  })
+
+  it('音訊由玩家選擇後解鎖，並與 performance timeline 共用時間', () => {
+    expect(renderSource).toContain('audioDirector.unlock()')
+    expect(renderSource).toContain('audioDirector.startTransport({')
+    expect(renderSource).toContain('startAtPerformanceMs')
+    expect(renderSource).toContain('audioDirector.scheduleBossCall({')
+    expect(renderSource).toContain('audioDirector.playCounterHit({')
+    expect(renderSource).toContain('targetTime(target.targetBeat) - beatMs * 2')
+    expect(renderSource).toContain('audioDirector.playModuleResponse(')
+    expect(renderSource).toContain('moduleResponseAt(targetAtPerformanceMs)')
     for (const bus of ['music', 'effects', 'interface']) {
       expect(visibleTemplate).toContain(`data-bus="${bus}"`)
     }
-    expect(visibleTemplate).toContain('class="mute-button"')
   })
 
-  it('使用固定鍵位提示，不以箭頭朝向代表應按方向', () => {
-    for (const key of ['W', 'A', 'S', 'D', 'Shift']) {
-      expect(visibleTemplate).toContain(`<kbd>${key}</kbd>`)
-    }
-    expect(renderSource).toContain("arrow.textContent = ''")
-    expect(renderSource).toContain('directionKey(attack.direction)')
-    expect(styles).toContain('.direction-guide.active')
+  it('斷路器重寫未播放小節時，會取消舊 Boss cue 並從新 target timeline 重排', () => {
+    expect(renderSource).toContain('function rebuildUnplayedBossCalls')
+    expect(renderSource).toContain('audioDirector.cancelBossCallsFrom(')
+    expect(renderSource).toContain('rewrittenFromBeat')
+    expect(renderSource).toContain('scheduledTargetIds = new Set(')
+    expect(renderSource).toContain('scheduleUpcomingTargets()')
   })
 
-  it('不直接顯示內部英文遊戲術語', () => {
-    for (const banned of [
-      '>Threat<',
-      '>Perfect<',
-      '>Phase<',
-      '>Boss HP<',
-      '>Restart<',
-      '>Turn<',
+  it('頁面或 AudioContext 中斷時暫停，不會把離開期間算成 miss', () => {
+    for (const marker of [
+      "window.addEventListener('blur', pauseBattleForInterruption)",
+      "document.addEventListener('visibilitychange'",
+      'pauseBattleForInterruption',
+      'resumeBattleAfterInterruption',
+      'clearBattleTimeout()',
+      'audioDirector.stopTransport()',
+      'rescheduleRemainingTargetsAfterPause',
+      'audioDirector.setInterruptionHandler',
     ]) {
-      expect(visibleTemplate).not.toContain(banned)
+      expect(renderSource).toContain(marker)
     }
+  })
+
+  it('包含核心、草稿、路線與 Run 結算覆蓋層，不增加頁面高度', () => {
+    for (const marker of [
+      "run.phase === 'choose-core'",
+      "run.phase === 'choose-passive'",
+      "run.phase === 'choose-route'",
+      "run.phase === 'run-won'",
+      'failRun(run)',
+    ]) {
+      expect(renderSource).toContain(marker)
+    }
+    expect(visibleTemplate).toContain('class="choice-overlay"')
+    expect(styles).toContain('.choice-overlay')
   })
 })

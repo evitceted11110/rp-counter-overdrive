@@ -1,5 +1,10 @@
 import { createRng } from '@rogue-paradise/rng'
 
+export * from './combat.js'
+export * from './phrases.js'
+export * from './run.js'
+export * from './runtime-battle.js'
+
 export type Direction = 'up' | 'right' | 'down' | 'left'
 export type AttackKind = 'direct' | 'double' | 'return' | 'breach' | 'drain'
 export type BattleStage = 'ready' | 'telegraph' | 'resolved' | 'won' | 'lost'

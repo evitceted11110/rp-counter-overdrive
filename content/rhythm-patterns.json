@@ -1,0 +1,351 @@
+{
+  "schema_version": 1,
+  "time_signature": "4/4",
+  "lanes": ["left", "right", "center"],
+  "patterns": [
+    {
+      "id": "calibration-left",
+      "name": "左軌校準",
+      "bars": 1,
+      "subdivision": 4,
+      "difficulty": 0,
+      "grammar": ["single"],
+      "route_tags": ["calibration"],
+      "allowed_encounters": [1],
+      "targets": [
+        { "step": 2, "lane": "left" },
+        { "step": 3, "lane": "left" }
+      ],
+      "marked_rest_steps": []
+    },
+    {
+      "id": "calibration-right",
+      "name": "右軌校準",
+      "bars": 1,
+      "subdivision": 4,
+      "difficulty": 0,
+      "grammar": ["single"],
+      "route_tags": ["calibration"],
+      "allowed_encounters": [1],
+      "targets": [
+        { "step": 2, "lane": "right" },
+        { "step": 3, "lane": "right" }
+      ],
+      "marked_rest_steps": []
+    },
+    {
+      "id": "alternating-left-right",
+      "name": "左右交替",
+      "bars": 1,
+      "subdivision": 4,
+      "difficulty": 0.02,
+      "grammar": ["alternating"],
+      "route_tags": ["alternating"],
+      "allowed_encounters": [1, 2, 3],
+      "targets": [
+        { "step": 2, "lane": "left" },
+        { "step": 3, "lane": "right" }
+      ],
+      "marked_rest_steps": []
+    },
+    {
+      "id": "redline-calibration",
+      "name": "紅線校準",
+      "bars": 1,
+      "subdivision": 4,
+      "difficulty": 0.03,
+      "grammar": ["redline", "single", "alternating"],
+      "route_tags": ["calibration", "alternating", "charge"],
+      "allowed_encounters": [1],
+      "targets": [
+        { "step": 2, "lane": "left" },
+        { "step": 3, "lane": "right" }
+      ],
+      "marked_rest_steps": []
+    },
+    {
+      "id": "alternating-right-left",
+      "name": "右左交替",
+      "bars": 1,
+      "subdivision": 4,
+      "difficulty": 0.02,
+      "grammar": ["alternating"],
+      "route_tags": ["alternating"],
+      "allowed_encounters": [1, 2, 3],
+      "targets": [
+        { "step": 2, "lane": "right" },
+        { "step": 3, "lane": "left" }
+      ],
+      "marked_rest_steps": []
+    },
+    {
+      "id": "spaced-left-right",
+      "name": "留拍左右",
+      "bars": 1,
+      "subdivision": 4,
+      "difficulty": 0.025,
+      "grammar": ["single", "rest"],
+      "route_tags": ["calibration"],
+      "allowed_encounters": [1],
+      "targets": [
+        { "step": 2, "lane": "left" },
+        { "step": 3, "lane": "right" }
+      ],
+      "marked_rest_steps": []
+    },
+    {
+      "id": "side-call-response",
+      "name": "雙軌問答",
+      "bars": 2,
+      "subdivision": 4,
+      "difficulty": 0.035,
+      "grammar": ["single", "alternating"],
+      "route_tags": ["alternating"],
+      "allowed_encounters": [1, 2, 3],
+      "targets": [
+        { "step": 2, "lane": "left" },
+        { "step": 3, "lane": "right" },
+        { "step": 6, "lane": "right" },
+        { "step": 7, "lane": "left" }
+      ],
+      "marked_rest_steps": []
+    },
+    {
+      "id": "center-anchor-left",
+      "name": "左軌重拍",
+      "bars": 1,
+      "subdivision": 4,
+      "difficulty": 0.04,
+      "grammar": ["center", "single"],
+      "route_tags": ["center"],
+      "allowed_encounters": [2, 3],
+      "targets": [
+        { "step": 2, "lane": "left" },
+        { "step": 3, "lane": "center" }
+      ],
+      "marked_rest_steps": []
+    },
+    {
+      "id": "center-anchor-right",
+      "name": "右軌重拍",
+      "bars": 1,
+      "subdivision": 4,
+      "difficulty": 0.04,
+      "grammar": ["center", "single"],
+      "route_tags": ["center"],
+      "allowed_encounters": [2, 3],
+      "targets": [
+        { "step": 2, "lane": "right" },
+        { "step": 3, "lane": "center" }
+      ],
+      "marked_rest_steps": []
+    },
+    {
+      "id": "same-side-left",
+      "name": "左軌二連",
+      "bars": 1,
+      "subdivision": 4,
+      "difficulty": 0.055,
+      "grammar": ["repeat"],
+      "route_tags": ["repeat"],
+      "allowed_encounters": [2, 3],
+      "targets": [
+        { "step": 2, "lane": "left" },
+        { "step": 3, "lane": "left" }
+      ],
+      "marked_rest_steps": []
+    },
+    {
+      "id": "same-side-right",
+      "name": "右軌二連",
+      "bars": 1,
+      "subdivision": 4,
+      "difficulty": 0.055,
+      "grammar": ["repeat"],
+      "route_tags": ["repeat"],
+      "allowed_encounters": [2, 3],
+      "targets": [
+        { "step": 2, "lane": "right" },
+        { "step": 3, "lane": "right" }
+      ],
+      "marked_rest_steps": []
+    },
+    {
+      "id": "eighth-left-right",
+      "name": "左起八分二連",
+      "bars": 1,
+      "subdivision": 8,
+      "difficulty": 0.07,
+      "grammar": ["eighth-pair", "alternating"],
+      "route_tags": ["repeat", "alternating"],
+      "allowed_encounters": [2, 3],
+      "targets": [
+        { "step": 4, "lane": "left" },
+        { "step": 5, "lane": "right" },
+        { "step": 6, "lane": "center" }
+      ],
+      "marked_rest_steps": []
+    },
+    {
+      "id": "eighth-right-left",
+      "name": "右起八分二連",
+      "bars": 1,
+      "subdivision": 8,
+      "difficulty": 0.07,
+      "grammar": ["eighth-pair", "alternating"],
+      "route_tags": ["repeat", "alternating"],
+      "allowed_encounters": [2, 3],
+      "targets": [
+        { "step": 4, "lane": "right" },
+        { "step": 5, "lane": "left" },
+        { "step": 6, "lane": "center" }
+      ],
+      "marked_rest_steps": []
+    },
+    {
+      "id": "rest-charge-left",
+      "name": "左軌空拍蓄能",
+      "bars": 1,
+      "subdivision": 8,
+      "difficulty": 0.06,
+      "grammar": ["rest", "center"],
+      "route_tags": ["charge", "center"],
+      "allowed_encounters": [2, 3],
+      "targets": [
+        { "step": 4, "lane": "left" },
+        { "step": 6, "lane": "center" }
+      ],
+      "marked_rest_steps": [5]
+    },
+    {
+      "id": "rest-charge-right",
+      "name": "右軌空拍蓄能",
+      "bars": 1,
+      "subdivision": 8,
+      "difficulty": 0.06,
+      "grammar": ["rest", "center"],
+      "route_tags": ["charge", "center"],
+      "allowed_encounters": [2, 3],
+      "targets": [
+        { "step": 4, "lane": "right" },
+        { "step": 6, "lane": "center" }
+      ],
+      "marked_rest_steps": [5]
+    },
+    {
+      "id": "syncopated-cross",
+      "name": "交叉切分",
+      "bars": 1,
+      "subdivision": 8,
+      "difficulty": 0.09,
+      "grammar": ["syncopated", "alternating"],
+      "route_tags": ["syncopated", "alternating"],
+      "allowed_encounters": [3],
+      "targets": [
+        { "step": 5, "lane": "left" },
+        { "step": 6, "lane": "center" },
+        { "step": 7, "lane": "right" }
+      ],
+      "marked_rest_steps": []
+    },
+    {
+      "id": "redline-downbeat",
+      "name": "紅線重拍",
+      "bars": 1,
+      "subdivision": 8,
+      "difficulty": 0.11,
+      "grammar": ["redline", "center", "repeat", "eighth-pair", "rest"],
+      "route_tags": ["center", "repeat", "charge"],
+      "allowed_encounters": [2],
+      "targets": [
+        { "step": 4, "lane": "left" },
+        { "step": 5, "lane": "left" },
+        { "step": 6, "lane": "center" }
+      ],
+      "marked_rest_steps": [7]
+    },
+    {
+      "id": "syncopated-center",
+      "name": "中央切分",
+      "bars": 1,
+      "subdivision": 8,
+      "difficulty": 0.095,
+      "grammar": ["syncopated", "center"],
+      "route_tags": ["syncopated", "charge"],
+      "allowed_encounters": [3],
+      "targets": [
+        { "step": 4, "lane": "left" },
+        { "step": 5, "lane": "center" },
+        { "step": 7, "lane": "right" }
+      ],
+      "marked_rest_steps": [6]
+    },
+    {
+      "id": "eighth-chain-left",
+      "name": "左起三軌鏈",
+      "bars": 1,
+      "subdivision": 8,
+      "difficulty": 0.105,
+      "grammar": ["eighth-chain", "alternating", "center"],
+      "route_tags": ["repeat", "alternating"],
+      "allowed_encounters": [3],
+      "targets": [
+        { "step": 4, "lane": "left" },
+        { "step": 5, "lane": "right" },
+        { "step": 6, "lane": "center" },
+        { "step": 7, "lane": "left" }
+      ],
+      "marked_rest_steps": []
+    },
+    {
+      "id": "eighth-chain-right",
+      "name": "右起三軌鏈",
+      "bars": 1,
+      "subdivision": 8,
+      "difficulty": 0.105,
+      "grammar": ["eighth-chain", "alternating", "center"],
+      "route_tags": ["repeat", "alternating"],
+      "allowed_encounters": [3],
+      "targets": [
+        { "step": 4, "lane": "right" },
+        { "step": 5, "lane": "left" },
+        { "step": 6, "lane": "center" },
+        { "step": 7, "lane": "right" }
+      ],
+      "marked_rest_steps": []
+    },
+    {
+      "id": "redline-cross",
+      "name": "紅線交錯",
+      "bars": 1,
+      "subdivision": 8,
+      "difficulty": 0.12,
+      "grammar": ["redline", "eighth-chain", "alternating"],
+      "route_tags": ["repeat", "alternating"],
+      "allowed_encounters": [3],
+      "targets": [
+        { "step": 4, "lane": "left" },
+        { "step": 5, "lane": "right" },
+        { "step": 6, "lane": "center" },
+        { "step": 7, "lane": "right" }
+      ],
+      "marked_rest_steps": []
+    },
+    {
+      "id": "redline-capacitor",
+      "name": "紅線蓄能",
+      "bars": 1,
+      "subdivision": 8,
+      "difficulty": 0.12,
+      "grammar": ["redline", "syncopated", "center", "rest"],
+      "route_tags": ["charge", "syncopated"],
+      "allowed_encounters": [3],
+      "targets": [
+        { "step": 4, "lane": "center" },
+        { "step": 5, "lane": "left" },
+        { "step": 7, "lane": "center" }
+      ],
+      "marked_rest_steps": [6]
+    }
+  ]
+}

@@ -1,122 +1,125 @@
 {
+  "schema_version": 2,
   "cores": [
     {
-      "id": "rupture-core",
-      "name": "裂解核心",
-      "family": "counter-chain",
-      "cost": 5,
-      "effect": { "type": "echo-next-counter", "value": 2 },
-      "play_change": "在最高威脅兌現一次裂解，使下一次反擊沿相反方向追加回擊。"
+      "id": "cross-resonance",
+      "name": "交叉共振",
+      "family": "alternating",
+      "compatible_tags": ["alternating", "repeat"],
+      "trigger": "連續完美命中相反側軌道",
+      "effect": {
+        "type": "alternating-perfect-echo",
+        "echo_damage": 2
+      },
+      "decision_change": "優先追逐左右交替句，第二拍成功後於下一個八分位置產生免費回聲。",
+      "visible_feedback": "第一拍後連線至另一軌，第二拍完美時回聲沿線返回 Boss。"
     },
     {
-      "id": "brake-core",
-      "name": "制動核心",
+      "id": "downbeat-capacitor",
+      "name": "重拍電容",
+      "family": "charge",
+      "compatible_tags": ["charge", "center"],
+      "trigger": "Phrase 公開時把標記休止格改寫成中央蓄能目標，成功震返後於下一個中央重拍兌現",
+      "effect": {
+        "type": "convert-marked-rest-to-center-charge",
+        "max_charges": 2,
+        "echo_damage_per_charge": 2
+      },
+      "decision_change": "接受由休止格公開增加的中央目標以蓄能，並提高中央拍路線的價值；Space 始終只對中央目標生效。",
+      "visible_feedback": "Phrase 預覽先把休止格翻成電容中央目標，命中後將蓄能層移至下一個中央重拍。"
+    },
+    {
+      "id": "steady-flywheel",
+      "name": "穩態飛輪",
       "family": "flywheel",
-      "cost": 3,
-      "effect": { "type": "set-threat", "value": 1 },
-      "play_change": "主動把高威脅降到一級並製造短暫安全窗，形成反覆加速與制動。"
-    },
-    {
-      "id": "repair-core",
-      "name": "修復核心",
-      "family": "vent",
-      "cost": 4,
-      "effect": { "type": "repair", "value": 1 },
-      "play_change": "把四級威脅兌現為一點完整度，讓玩家在保命與高速輸出間取捨。"
-    },
-    {
-      "id": "phase-core",
-      "name": "相位核心",
-      "family": "phase",
-      "cost": 4,
-      "effect": { "type": "restore-phase", "value": 1 },
-      "play_change": "把四級威脅換成一次相位，允許主動選擇破防招較多的路線。"
+      "compatible_tags": ["repeat", "recovery", "center"],
+      "trigger": "每小節第一次普通反擊或輕微偏拍",
+      "effect": {
+        "type": "forgive-now-add-center-next-bar",
+        "max_added_targets_per_bar": 1,
+        "vulnerability_damage": 4
+      },
+      "decision_change": "以下一小節的公開中央壓力換取當下容錯；若下一小節全完美，追加拍轉成 Boss 破綻。",
+      "visible_feedback": "容錯發生後預覽插入中央拍，全完美時翻轉成金色破綻。"
     }
   ],
   "passives": [
     {
-      "id": "return-splitter",
-      "name": "回返分流",
-      "family": "counter-chain",
-      "effect": { "type": "return-hit-splits", "value": 1 },
-      "play_change": "回返招的第二次完美反擊會複製傷害到 Boss 核心，改變對回返路線的評價。"
+      "id": "cross-conductor",
+      "name": "交叉導體",
+      "family": "alternating",
+      "compatible_tags": ["alternating"],
+      "trigger": "一側完美後遇到相反側目標",
+      "effect": {
+        "type": "opposite-lane-window",
+        "normal_window_bonus_ms": 40
+      },
+      "decision_change": "追逐交替序列以取得下一個相反側的容錯；同側目標會清除待用加寬。"
     },
     {
-      "id": "pulse-memory",
-      "name": "脈衝記憶",
-      "family": "counter-chain",
-      "effect": { "type": "sequence-perfect-carry", "value": 1 },
-      "play_change": "雙脈衝第一段完美後，第二段只需普通窗口即可延續完美連段。"
+      "id": "same-side-ratchet",
+      "name": "同側棘輪",
+      "family": "repeat",
+      "compatible_tags": ["repeat"],
+      "trigger": "同側二連第一拍完美",
+      "effect": {
+        "type": "repeat-second-risk",
+        "perfect_window_penalty_ms": 20,
+        "bonus_overload": 1,
+        "bonus_damage": 2
+      },
+      "decision_change": "選擇是否承擔第二拍窄窗，以換取雙倍超載與額外打擊。"
     },
     {
-      "id": "opposite-echo",
-      "name": "逆向殘響",
-      "family": "counter-chain",
-      "effect": { "type": "opposite-next-damage", "value": 4 },
-      "play_change": "連續兩次相反方向完美反擊時追加傷害，鼓勵讀取方向序列。"
+      "id": "rest-insurance",
+      "name": "空拍保險",
+      "family": "charge",
+      "compatible_tags": ["charge", "center"],
+      "trigger": "Phrase 公開時把一個標記休止格改寫成中央保險目標",
+      "effect": {
+        "type": "convert-marked-rest-to-center-insurance",
+        "max_stacks": 1,
+        "perfect_multiplier_lock_bars": 1
+      },
+      "decision_change": "承擔一個預先公開的額外中央目標並犧牲本小節完美倍率，換取一次把失誤改成普通反擊的保險。"
     },
     {
-      "id": "minimum-flywheel",
-      "name": "最低飛輪",
-      "family": "flywheel",
-      "effect": { "type": "minimum-threat", "value": 1 },
-      "play_change": "第一次升到三級後，本場威脅不再低於一級，換取長時間高速壓力。"
+      "id": "three-phase-sequence",
+      "name": "三相序列",
+      "family": "sequence",
+      "compatible_tags": ["alternating", "center"],
+      "trigger": "依序完美完成左、右、Space 或右、左、Space",
+      "effect": {
+        "type": "three-lane-vulnerability",
+        "vulnerability_damage": 4
+      },
+      "decision_change": "跨拍規劃三軌順序，將中央拍串入進攻而非視為獨立障礙。"
     },
     {
-      "id": "error-clutch",
-      "name": "失誤離合",
-      "family": "flywheel",
-      "effect": { "type": "miss-threat-loss", "value": 1 },
-      "play_change": "失誤只掉一級威脅，但下一次完美反擊不造成額外傷害。"
+      "id": "delay-reed",
+      "name": "延遲簧片",
+      "family": "syncopated",
+      "compatible_tags": ["syncopated"],
+      "trigger": "切分目標在完美窗後半段命中",
+      "effect": {
+        "type": "late-perfect-echo",
+        "max_per_bar": 2,
+        "echo_damage": 2
+      },
+      "decision_change": "在完美窗內刻意偏晚輸入，以換取下一個反拍回聲。"
     },
     {
-      "id": "redline-lock",
-      "name": "紅線鎖定",
-      "family": "flywheel",
-      "effect": { "type": "threat-five-lock-attacks", "value": 3 },
-      "play_change": "抵達五級後鎖住三次攻擊，期間不能釋放核心，迫使玩家承受完整高速段。"
-    },
-    {
-      "id": "vent-shockwave",
-      "name": "洩壓震波",
-      "family": "vent",
-      "effect": { "type": "core-cast-damage-per-threat", "value": 3 },
-      "play_change": "釋放核心時依消耗威脅造成震波，讓兌現時機同時影響輸出。"
-    },
-    {
-      "id": "cooling-window",
-      "name": "冷卻空窗",
-      "family": "vent",
-      "effect": { "type": "core-cast-slow-attacks", "value": 2 },
-      "play_change": "釋放核心後兩次攻擊使用零級前搖，提供主動重整節奏的窗口。"
-    },
-    {
-      "id": "emergency-vent",
-      "name": "緊急洩壓",
-      "family": "vent",
-      "effect": { "type": "lethal-miss-spend-threat", "value": 4 },
-      "play_change": "四級以上的致命失誤會清空威脅並保留一點完整度，每場一次。"
-    },
-    {
-      "id": "phase-afterimage",
-      "name": "相位殘像",
-      "family": "phase",
-      "effect": { "type": "phase-damage", "value": 8 },
-      "play_change": "相位穿過破防招時留下殘像反擊，使閃避資源也能推進戰鬥。"
-    },
-    {
-      "id": "phase-refraction",
-      "name": "相位折射",
-      "family": "phase",
-      "effect": { "type": "phase-next-perfect", "value": 1 },
-      "play_change": "相位後下一次正確方向反擊直接視為完美，改變破防招後的節奏。"
-    },
-    {
-      "id": "static-veil",
-      "name": "靜電帷幕",
-      "family": "phase",
-      "effect": { "type": "phase-on-miss", "value": 1 },
-      "play_change": "仍有相位時，第一次錯誤方向自動消耗相位避免受傷，但不能用來穿越破防招。"
+      "id": "circuit-breaker",
+      "name": "斷路器",
+      "family": "recovery",
+      "compatible_tags": ["recovery", "repeat"],
+      "trigger": "發生失誤",
+      "effect": {
+        "type": "replace-next-bar-with-safe-phrase",
+        "max_per_battle": 2,
+        "damage_multiplier": 0.75
+      },
+      "decision_change": "接受下一小節較低輸出，以熟悉的四分單拍重建節奏；全完美後恢復正常句。"
     }
   ]
 }
