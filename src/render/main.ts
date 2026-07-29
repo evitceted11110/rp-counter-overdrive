@@ -27,6 +27,10 @@ import {
 import { routeCombatKeyboardEvent } from '../input/index.js'
 import { BeatTimeline, RhythmTransport } from '../transport/index.js'
 import type { CombatAction } from '../core/phrases.js'
+import {
+  createAutoClickPlan,
+  isCurrentAutoClickPlan,
+} from './autoplay.js'
 import './styles.css'
 
 type RawBoss = {
@@ -161,7 +165,7 @@ root.innerHTML = `
   <section class="game-shell" tabindex="-1" aria-label="反擊超載遊戲">
     <header class="top-hud">
       <div class="brand-block">
-        <span class="eyebrow">三軌節奏隨機冒險 0.3.3</span>
+        <span class="eyebrow">三軌節奏隨機冒險 0.3.4</span>
         <strong>反擊超載</strong>
       </div>
       <div class="run-progress" aria-label="本局進度">
@@ -629,7 +633,7 @@ function showChoice(): void {
   renderBuild()
   if (run.phase === 'choose-core') {
     choicePanel.innerHTML = `
-      <span class="choice-kicker">0.3.3 隨機冒險</span>
+      <span class="choice-kicker">0.3.4 隨機冒險</span>
       <h1>選擇本局的反擊規則</h1>
       <p>三個核心都不增加按鍵；它們會被動改寫你追逐的節奏。</p>
       <div class="choice-grid">${run.coreChoices.map((choice) => itemCard(choice, 'core')).join('')}</div>
@@ -968,7 +972,10 @@ function scheduleAutoClick(): void {
     stopAutoClick()
     return
   }
-  const targetAt = transport.targetTimeMs(target.targetBeat)
+  const plan = createAutoClickPlan(
+    target,
+    transport.targetTimeMs(target.targetBeat),
+  )
   autoClickTimeoutId = window.setTimeout(() => {
     autoClickTimeoutId = null
     if (
@@ -976,14 +983,22 @@ function scheduleAutoClick(): void {
       battle === null ||
       transport === null ||
       battlePaused ||
-      ending !== null ||
-      battle.targets[battle.cursor]?.id !== target.id
+      ending !== null
     ) {
       return
     }
+    if (!isCurrentAutoClickPlan(plan, battle.targets[battle.cursor])) {
+      // 期間若發生 timeout、斷路器改寫或其他動態插入，舊計畫不可以
+      // 靜默消失；立刻對目前目標建立下一筆計畫。
+      scheduleAutoClick()
+      return
+    }
     // 只走與真人相同的 handleAction；不改動本局種子、目標或亂數。
-    handleAction(target.lane, targetAt)
-  }, Math.max(0, targetAt - performance.now()))
+    handleAction(plan.action, plan.atPerformanceMs)
+    // 正常命中會由 afterResolution 排下一顆。此保底處理所有沒有推進
+    // cursor 的競態分支，避免自動點擊在一顆音符後靜默停止。
+    if (autoClickEnabled && autoClickTimeoutId === null) scheduleAutoClick()
+  }, Math.max(0, plan.atPerformanceMs - performance.now()))
 }
 
 function handleAction(action: CombatAction, inputPerformanceMs: number): void {

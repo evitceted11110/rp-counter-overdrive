@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
+  advanceAutomaticBattleEffects,
   createBattleState,
   createEncounterPhraseSequence,
   createEncounterTargets,
@@ -11,6 +12,7 @@ import {
   type EncounterDefinition,
   type PatternDefinition,
 } from '../core/index.js'
+import { createAutoClickPlan } from './autoplay.js'
 
 const bosses = JSON.parse(
   readFileSync(new URL('../../content/bosses.json', import.meta.url), 'utf8'),
@@ -261,6 +263,37 @@ describe('正式 content 與 runtime 契約', () => {
         state = resolveBattleAction(state, current.lane, 0)
       }
       expect(state.bossIntegrity).toBe(0)
+    }
+  })
+
+  it('測試用自動點擊可沿著目前 target 的 Perfect 計畫完成每一戰', () => {
+    for (const encounter of definitions) {
+      let state = createBattleState({
+        seed: `autoplay-clear-${encounter.encounter}`,
+        encounter,
+        patterns: patternDefinitions,
+        routeTags:
+          encounter.encounter === 1
+            ? []
+            : encounter.encounter === 2
+              ? ['alternating']
+              : ['syncopated', 'alternating'],
+        effects: [],
+        playerIntegrity: 6,
+      })
+      while (state.bossIntegrity > 0) {
+        const current = state.targets[state.cursor]
+        if (current === undefined) break
+        const plan = createAutoClickPlan(
+          current,
+          current.targetBeat * (60_000 / encounter.bpm),
+        )
+        // Perfect 時間傳入既有 runtime 判定；planner 不修改 target 或 seed。
+        state = resolveBattleAction(state, plan.action, 0)
+        state = advanceAutomaticBattleEffects(state)
+      }
+      expect(state.bossIntegrity).toBe(0)
+      expect(state.playerIntegrity).toBeGreaterThan(0)
     }
   })
 })
