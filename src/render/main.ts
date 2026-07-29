@@ -171,7 +171,7 @@ root.innerHTML = `
   <section class="game-shell" tabindex="-1" aria-label="反擊超載遊戲">
     <header class="top-hud">
       <div class="brand-block">
-        <span class="eyebrow">三軌節奏隨機冒險 0.4.0</span>
+        <span class="eyebrow">三軌節奏隨機冒險 0.4.1</span>
         <strong>反擊超載</strong>
       </div>
       <div class="run-progress" aria-label="本局進度">
@@ -226,8 +226,7 @@ root.innerHTML = `
           <div class="target-layer"></div>
           <div class="hit-line"><i></i><strong>反擊線</strong></div>
         </div>
-        <div class="impact-text"></div>
-        <div class="event-detail"></div>
+        <div class="impact-feedback-layer" aria-live="polite" aria-label="命中回饋"></div>
       </section>
 
       <aside class="intel-panel">
@@ -308,8 +307,7 @@ const bpmValue = query<HTMLElement>('.bpm-value')
 const phraseLabel = query<HTMLElement>('.phrase-label')
 const buildStage = query<HTMLElement>('.build-stage')
 const targetLayer = query<HTMLElement>('.target-layer')
-const impactText = query<HTMLElement>('.impact-text')
-const eventDetail = query<HTMLElement>('.event-detail')
+const impactFeedbackLayer = query<HTMLElement>('.impact-feedback-layer')
 const nextPattern = query<HTMLElement>('.next-pattern')
 const currentLane = query<HTMLElement>('.current-lane')
 const routeName = query<HTMLElement>('.route-name')
@@ -333,8 +331,8 @@ let transport: RhythmTransport | null = null
 let timeoutId: number | null = null
 let scheduledTargetIds = new Set<string>()
 let targetVisualSlots = new Map<string, TargetVisualLayout>()
-let impactUntil = 0
-let lastEventIdentity = ''
+let impactFeedbackSerial = 0
+let impactFeedbackTimers = new Set<number>()
 let battlePaused = false
 let ending: { won: boolean; finishAt: number } | null = null
 let endingTimeoutId: number | null = null
@@ -689,7 +687,7 @@ function showChoice(): void {
   renderBuild()
   if (run.phase === 'choose-core') {
     choicePanel.innerHTML = `
-      <span class="choice-kicker">0.4.0 隨機冒險</span>
+      <span class="choice-kicker">0.4.1 隨機冒險</span>
       <h1>選擇本局的反擊規則</h1>
       <p>三個核心都不增加按鍵；它們會被動改寫你追逐的節奏。</p>
       <div class="choice-grid">${run.coreChoices.map((choice) => itemCard(choice, 'core')).join('')}</div>
@@ -741,6 +739,7 @@ function showChoice(): void {
 
 async function startEncounter(): Promise<void> {
   stopAutoClick()
+  clearImpactFeedbacks()
   const encounter = currentEncounter()
   const route = run.routeId === null ? undefined : allRoutes.get(run.routeId)
   battle = createBattleState({
@@ -813,6 +812,14 @@ function scheduleUpcomingTargets(): void {
         // 兩拍（slots 0–3），讓讀招、pickup、回擊形成可預期問答。
         targetTime(target.targetBeat) - beatMs * 2,
       ),
+      targetAtPerformanceMs: targetTime(target.targetBeat),
+      heavy: target.lane === 'center',
+    })
+    // 每一顆鎖定音符都以同一個 target time 排入音樂的 response
+    // accent。這不是按鍵確認聲，讓玩家即使在八分格也能先「聽到」
+    // 譜面拍點，並和畫面／判定共用同一 performance timeline。
+    audioDirector.scheduleTargetAccent({
+      lane: target.lane,
       targetAtPerformanceMs: targetTime(target.targetBeat),
       heavy: target.lane === 'center',
     })
@@ -946,11 +953,62 @@ function moduleSound(sourceId: string): ModuleAudioKind {
   return 'silent-shield'
 }
 
+type ImpactFeedbackEvent = NonNullable<BattleRuntimeState['lastEvent']>
+
+/**
+ * 連打不能只保留「最新一筆」判定：那會讓 1/8 拍的完美與普通反擊互相
+ * 覆蓋。每一筆命中都在命中線上生成自己的短軌跡，並在動畫結束後獨立
+ * 移除；新命中從不重置前一筆的動畫或位置。
+ */
+function clearImpactFeedbacks(): void {
+  for (const timer of impactFeedbackTimers) window.clearTimeout(timer)
+  impactFeedbackTimers = new Set()
+  impactFeedbackLayer.replaceChildren()
+}
+
+function showImpactFeedback(
+  event: ImpactFeedbackEvent,
+  lane: CombatAction | undefined,
+): void {
+  const visibleKinds = new Set(['perfect', 'normal', 'center', 'miss', 'timeout'])
+  if (!visibleKinds.has(event.kind)) return
+
+  impactFeedbackSerial += 1
+  const serial = impactFeedbackSerial
+  const origin = lane === 'left' ? 16.666 : lane === 'right' ? 83.333 : 50
+  // 同一軌連打在左右兩側交錯起飛；0、1、2 三個高度層能保留可讀性，
+  // 同時仍讓玩家看見它們都從反擊線命中。
+  const drift = (serial % 2 === 0 ? 1 : -1) * (18 + (serial % 3) * 7)
+  const rise = 44 + (serial % 3) * 11
+  const feedback = document.createElement('div')
+  feedback.className = `impact-feedback is-${event.kind}`
+  feedback.style.setProperty('--feedback-origin', `${origin}%`)
+  feedback.style.setProperty('--feedback-drift', `${drift}px`)
+  feedback.style.setProperty('--feedback-rise', `${rise}px`)
+  feedback.style.setProperty('--feedback-drift-mid', `${drift * 0.45}px`)
+  feedback.style.setProperty('--feedback-rise-mid', `${rise * 0.5}px`)
+  feedback.style.setProperty('--feedback-trail-offset', `${drift * -0.22}px`)
+  feedback.style.setProperty('--feedback-lift', `${(serial % 3) * 4}px`)
+  feedback.setAttribute('aria-label', `${event.title}${event.damage > 0 ? `，${event.damage} 分` : ''}`)
+
+  const title = document.createElement('strong')
+  title.textContent = event.title
+  const score = document.createElement('small')
+  score.textContent = event.damage > 0 ? `＋${event.damage} 分` : '未得分'
+  feedback.append(title, score)
+  impactFeedbackLayer.append(feedback)
+
+  const timer = window.setTimeout(() => {
+    feedback.remove()
+    impactFeedbackTimers.delete(timer)
+  }, 820)
+  impactFeedbackTimers.add(timer)
+}
+
 function announceBattleEvent(targetAtPerformanceMs?: number): void {
   if (battle?.lastEvent === null || battle?.lastEvent === undefined) return
   const event = battle.lastEvent
-  impactUntil = performance.now() + 620
-  lastEventIdentity = `${battle.cursor}:${event.kind}:${event.title}`
+  showImpactFeedback(event, battle.targets[battle.cursor - 1]?.lane)
   for (const trigger of event.triggered) {
     audioDirector.playModuleResponse(
       moduleSound(trigger),
@@ -1072,7 +1130,7 @@ function handleAction(action: CombatAction, inputPerformanceMs: number): void {
   if (event === null) return
   if (battle.cursor === previousCursor) {
     audioDirector.playInterface('invalid')
-    impactUntil = performance.now() + 320
+    showImpactFeedback(event, target.lane)
     return
   }
   clearBattleTimeout()
@@ -1118,11 +1176,13 @@ function finishEncounterAfterFinale(): void {
   transport = null
   battlePaused = false
   ending = null
+  clearImpactFeedbacks()
   showChoice()
 }
 
 function restartRun(): void {
   stopAutoClick()
+  clearImpactFeedbacks()
   if (endingTimeoutId !== null) {
     window.clearTimeout(endingTimeoutId)
     endingTimeoutId = null
@@ -1242,6 +1302,7 @@ function laneLabel(lane: CombatAction | undefined): string {
 }
 
 function render(now: number): void {
+  void now
   renderPips(
     battle?.playerIntegrity ?? run.playerIntegrity,
     run.maxPlayerIntegrity,
@@ -1304,25 +1365,6 @@ function render(now: number): void {
   } else {
     targetLayer.innerHTML = ''
     if (battle === null) shell.classList.remove('boss-defeated')
-  }
-
-  const event = battle?.lastEvent
-  if (event !== null && event !== undefined) {
-    const identity = `${battle?.cursor}:${event.kind}:${event.title}`
-    if (identity === lastEventIdentity || now < impactUntil) {
-      impactText.textContent = event.title
-      impactText.className = `impact-text show ${event.kind}`
-      eventDetail.textContent =
-        event.triggered.length > 0
-          ? `${event.detail}・${event.triggered
-              .map((id) => allItems.get(id)?.name ?? id)
-              .join('＋')}`
-          : event.detail
-    }
-  }
-  if (now >= impactUntil) {
-    impactText.classList.remove('show')
-    eventDetail.textContent = ''
   }
 
   requestAnimationFrame(render)

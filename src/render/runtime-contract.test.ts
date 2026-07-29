@@ -194,6 +194,30 @@ describe('正式 content 與 runtime 契約', () => {
     }
   })
 
+  it('縮短後的每條合法路線仍在倒數前編譯為精確固定音符預算', () => {
+    const routeVariants: ReadonlyArray<readonly string[]> = [
+      [],
+      ['alternating', 'repeat'],
+      ['center', 'charge'],
+      ['syncopated', 'center'],
+    ]
+    for (const encounter of definitions) {
+      for (const routeTags of routeVariants) {
+        for (let seed = 0; seed < 16; seed += 1) {
+          const targets = createEncounterTargets({
+            seed: `short-chart-${encounter.encounter}-${routeTags.join('-')}-${seed}`,
+            encounter,
+            patterns: patternDefinitions,
+            routeTags,
+            effects: [],
+          })
+          expect(targets).toHaveLength(encounter.fixedChart?.noteBudget ?? -1)
+          expect(targets.at(-1)?.grammar).toContain('redline')
+        }
+      }
+    }
+  })
+
   it('三戰都預告完整紅線；前兩戰不引入未教過的輸入語法', () => {
     for (const encounter of definitions) {
       expect(encounter.redlinePatterns.length).toBeGreaterThan(0)
@@ -214,10 +238,10 @@ describe('正式 content 與 runtime 契約', () => {
     }
   })
 
-  it('完整成功 Run 的固定譜面合約估計為 5–6 分鐘，且擊破後仍要跑完譜面', () => {
+  it('完整成功 Run 的固定譜面合約估計為 4–5 分鐘，且擊破後仍要跑完譜面', () => {
     const estimate = estimateSuccessfulRunDurationMs(definitions)
-    expect(estimate).toBeGreaterThanOrEqual(300_000)
-    expect(estimate).toBeLessThanOrEqual(360_000)
+    expect(estimate).toBeGreaterThanOrEqual(240_000)
+    expect(estimate).toBeLessThanOrEqual(300_000)
     for (const encounter of definitions) {
       let state = createBattleState({
         seed: `no-early-${encounter.encounter}`,

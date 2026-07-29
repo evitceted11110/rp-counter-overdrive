@@ -50,6 +50,17 @@ export type BossCallOptions = {
   heavy?: boolean
 }
 
+/**
+ * A quiet musical anchor at the exact response time of a locked chart note.
+ * This is deliberately part of the music bus, not judgement feedback: it
+ * tells the ear where the chart is before the player presses a key.
+ */
+export type TargetAccentOptions = {
+  lane: AudioLane
+  targetAtPerformanceMs: number
+  heavy?: boolean
+}
+
 type PendingBossCall = {
   timeoutId: number
   callAtPerformanceMs: number
@@ -293,6 +304,31 @@ export class CounterOverdriveAudio {
       timeoutId,
       callAtPerformanceMs,
       targetAtPerformanceMs: options.targetAtPerformanceMs,
+    })
+  }
+
+  /**
+   * The old backing pattern only guaranteed quarter-note drum hits at tier 0.
+   * A response note can live on any native eighth slot, so schedule a subtle
+   * accent from the same performance-time target used by rendering and input.
+   * Web Audio keeps this sample-accurate even when the JS scheduler wakes late.
+   */
+  scheduleTargetAccent(options: TargetAccentOptions): void {
+    if (this.finalizing || this.context === null) return
+    const at = this.resolveContextTime(options.targetAtPerformanceMs)
+    const heavy = options.heavy ?? false
+    const pan = lanePan(options.lane) * 0.22
+    this.hat(at, heavy ? 0.032 : 0.018, pan)
+    this.voice({
+      bus: 'rhythm',
+      frequency: laneFrequency(options.lane) * (heavy ? 1 : 1.5),
+      endFrequency: laneFrequency(options.lane) * (heavy ? 0.78 : 1.2),
+      duration: heavy ? 0.09 : 0.052,
+      gain: heavy ? 0.026 : 0.012,
+      at,
+      pan,
+      filterFrequency: heavy ? 780 : 1800,
+      type: heavy ? 'triangle' : 'sine',
     })
   }
 

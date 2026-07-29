@@ -79,6 +79,38 @@
       "marked_rest_steps": []
     },
     {
+      "id": "calibration-eighth-left-right",
+      "name": "左起短連校準",
+      "bars": 1,
+      "subdivision": 8,
+      "difficulty": 0.025,
+      "grammar": ["alternating", "eighth-pair"],
+      "route_tags": ["calibration", "alternating"],
+      "allowed_encounters": [1],
+      "targets": [
+        { "step": 4, "lane": "left" },
+        { "step": 5, "lane": "right" },
+        { "step": 7, "lane": "left" }
+      ],
+      "marked_rest_steps": []
+    },
+    {
+      "id": "calibration-eighth-right-left",
+      "name": "右起短連校準",
+      "bars": 1,
+      "subdivision": 8,
+      "difficulty": 0.025,
+      "grammar": ["alternating", "eighth-pair"],
+      "route_tags": ["calibration", "alternating"],
+      "allowed_encounters": [1],
+      "targets": [
+        { "step": 4, "lane": "right" },
+        { "step": 5, "lane": "left" },
+        { "step": 7, "lane": "right" }
+      ],
+      "marked_rest_steps": []
+    },
+    {
       "id": "spaced-left-right",
       "name": "留拍左右",
       "bars": 1,
@@ -231,6 +263,39 @@
         { "step": 6, "lane": "center" }
       ],
       "marked_rest_steps": [5]
+    },
+    {
+      "id": "charge-eighth-weave",
+      "name": "蓄能短連",
+      "bars": 1,
+      "subdivision": 8,
+      "difficulty": 0.075,
+      "grammar": ["rest", "center", "eighth-pair"],
+      "route_tags": ["charge", "center"],
+      "allowed_encounters": [2, 3],
+      "targets": [
+        { "step": 4, "lane": "left" },
+        { "step": 5, "lane": "center" },
+        { "step": 7, "lane": "right" }
+      ],
+      "marked_rest_steps": [6]
+    },
+    {
+      "id": "charge-eighth-chain",
+      "name": "蓄能三軌鏈",
+      "bars": 1,
+      "subdivision": 8,
+      "difficulty": 0.11,
+      "grammar": ["syncopated", "center", "eighth-chain"],
+      "route_tags": ["charge", "center", "syncopated"],
+      "allowed_encounters": [3],
+      "targets": [
+        { "step": 4, "lane": "center" },
+        { "step": 5, "lane": "left" },
+        { "step": 6, "lane": "right" },
+        { "step": 7, "lane": "center" }
+      ],
+      "marked_rest_steps": []
     },
     {
       "id": "syncopated-cross",

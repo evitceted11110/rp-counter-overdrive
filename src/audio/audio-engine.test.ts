@@ -24,6 +24,14 @@ describe('Boss call 相位音訊契約', () => {
     expect(source).toContain('Boss cue 永遠不會滲入玩家的 response slots 4–7')
   })
 
+  it('每個固定音符在自己的 performance target time 排入音樂 response accent', () => {
+    expect(source).toContain('export type TargetAccentOptions')
+    expect(source).toContain('scheduleTargetAccent(options: TargetAccentOptions)')
+    expect(source).toContain('const at = this.resolveContextTime(options.targetAtPerformanceMs)')
+    expect(source).toContain("bus: 'rhythm'")
+    expect(source).toContain('Web Audio keeps this sample-accurate')
+  })
+
   it('終曲先關閉 transport 與未發聲 Boss call，並鎖住後續目標音效', () => {
     expect(source).toContain("export type EncounterFinaleOutcome = 'victory' | 'defeat'")
     expect(source).toContain('playEncounterFinale(')

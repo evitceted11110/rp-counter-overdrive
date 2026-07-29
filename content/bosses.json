@@ -2,7 +2,7 @@
   "schema_version": 3,
   "run": {
     "encounters": 3,
-    "target_duration_minutes": [5, 6],
+    "target_duration_minutes": [4, 5],
     "passives_per_run": 2,
     "route_choice_after_encounter": 1,
     "scoring": {
@@ -51,13 +51,13 @@
       "bpm": 120,
       "fixed_chart": {
         "note_budget": 50,
-        "chart_bars": 32,
+        "chart_bars": 22,
         "defeat_score": 36,
         "maximum_base_score": 100,
         "post_defeat": "bonus-coda"
       },
       "integrity": 36,
-      "max_bars": 32,
+      "max_bars": 22,
       "perfect_window_ms": 60,
       "normal_window_ms": 140,
       "opening_patterns": ["calibration-left", "calibration-right"],
@@ -74,13 +74,13 @@
       "bpm": 132,
       "fixed_chart": {
         "note_budget": 72,
-        "chart_bars": 40,
+        "chart_bars": 28,
         "defeat_score": 62,
         "maximum_base_score": 144,
         "post_defeat": "bonus-coda"
       },
       "integrity": 62,
-      "max_bars": 40,
+      "max_bars": 28,
       "perfect_window_ms": 50,
       "normal_window_ms": 120,
       "opening_patterns": ["center-anchor-left", "center-anchor-right"],
@@ -97,13 +97,13 @@
       "bpm": 144,
       "fixed_chart": {
         "note_budget": 96,
-        "chart_bars": 48,
+        "chart_bars": 34,
         "defeat_score": 92,
         "maximum_base_score": 192,
         "post_defeat": "bonus-coda"
       },
       "integrity": 92,
-      "max_bars": 48,
+      "max_bars": 34,
       "perfect_window_ms": 45,
       "normal_window_ms": 100,
       "opening_patterns": ["side-call-response", "center-anchor-left"],

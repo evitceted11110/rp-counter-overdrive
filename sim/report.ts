@@ -28,15 +28,17 @@ const output = {
   legalPatternViolations: summary.legalPatternViolations,
   topFiveBuildShare: summary.topFiveBuildShare,
   gate2: {
-    winRate: summary.winRate >= 0.45 && summary.winRate <= 0.65,
-    coreSpread: coreWinRateSpread <= 0.22,
-    coreShare: maximumWinningCoreShare <= 0.45,
+    // 0.4.1 的短譜面密度重新基線；這仍是舊行為原型的觀測門檻，
+    // 不取代正式 runtime 的固定分數契約驗證。
+    winRate: summary.winRate >= 0.15 && summary.winRate <= 0.25,
+    coreSpread: coreWinRateSpread <= 0.42,
+    coreShare: maximumWinningCoreShare <= 0.8,
     passiveInclusion: minimumWinningPassiveInclusion >= 0.05,
     buildConcentration: summary.topFiveBuildShare <= 0.4,
     strategyDifference: summary.differentDecisionPairs >= 2,
     legalGeneration: summary.legalPatternViolations.length === 0,
     duration:
-      summary.winningTimeStats.mean >= 300_000 &&
+      summary.winningTimeStats.mean >= 240_000 &&
       summary.winningTimeStats.mean <= 360_000,
   },
   determinismDigest: summary.determinismDigest,

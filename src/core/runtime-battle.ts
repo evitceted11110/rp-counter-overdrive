@@ -160,6 +160,36 @@ function chartBars(encounter: EncounterDefinition): number {
   return bars
 }
 
+function patternNoteCount(pattern: PatternDefinition): number {
+  return pattern.targets.length
+}
+
+/**
+ * Return the largest number of native targets that can still fit in exactly
+ * `bars` bars.  A fixed chart is never allowed to depend on runtime notes
+ * (for example, a converted rest) to reach its published note budget.
+ */
+function maxNativeNotesForBars(
+  patterns: readonly PatternDefinition[],
+  bars: number,
+): number {
+  const capacity = Array.from({ length: bars + 1 }, () => Number.NEGATIVE_INFINITY)
+  capacity[0] = 0
+  for (let used = 0; used <= bars; used += 1) {
+    const current = capacity[used]
+    if (current === undefined || !Number.isFinite(current)) continue
+    for (const pattern of patterns) {
+      const next = used + pattern.bars
+      if (next > bars) continue
+      capacity[next] = Math.max(
+        capacity[next] ?? Number.NEGATIVE_INFINITY,
+        current + patternNoteCount(pattern),
+      )
+    }
+  }
+  return capacity[bars] ?? Number.NEGATIVE_INFINITY
+}
+
 function defeatScore(encounter: EncounterDefinition): number {
   const score = encounter.fixedChart?.defeatScore ?? encounter.integrity
   if (typeof score !== 'number' || !Number.isInteger(score) || score <= 0) {
@@ -227,6 +257,11 @@ export function createEncounterPhraseSequence(
   const redline =
     redlineCandidates.length === 0 ? undefined : rng.pick(redlineCandidates)
   const reservedBars = redline?.bars ?? 0
+  const fixedBudget = options.encounter.fixedChart?.noteBudget
+  const nativeBudget =
+    fixedBudget === undefined
+      ? undefined
+      : fixedBudget - (redline === undefined ? 0 : patternNoteCount(redline))
 
   for (const grammar of options.encounter.requiredGrammar) {
     if (covered.has(grammar) || grammar === 'redline') continue
@@ -247,11 +282,33 @@ export function createEncounterPhraseSequence(
   if (bars(selected) + reservedBars > totalBars) {
     throw new Error(`${options.encounter.id} 開場與教學超過 chart_bars`)
   }
+  if (
+    nativeBudget !== undefined &&
+    selected.reduce((total, pattern) => total + patternNoteCount(pattern), 0) +
+      maxNativeNotesForBars(
+        routePreferred.length > 0 ? routePreferred : regularEligible,
+        totalBars - reservedBars - bars(selected),
+      ) <
+      nativeBudget
+  ) {
+    throw new Error(`${options.encounter.id} 沒有足夠原生音符填滿 note_budget`)
+  }
   while (bars(selected) < totalBars - reservedBars) {
     const remaining = totalBars - reservedBars - bars(selected)
-    const candidates = (routePreferred.length > 0 ? routePreferred : regularEligible).filter(
-      (pattern) => pattern.bars <= remaining,
+    const fillPool = routePreferred.length > 0 ? routePreferred : regularEligible
+    const selectedNotes = selected.reduce(
+      (total, pattern) => total + patternNoteCount(pattern),
+      0,
     )
+    const candidates = fillPool.filter((pattern) => {
+      if (pattern.bars > remaining) return false
+      if (nativeBudget === undefined) return true
+      const remainingCapacity = maxNativeNotesForBars(
+        fillPool,
+        remaining - pattern.bars,
+      )
+      return selectedNotes + patternNoteCount(pattern) + remainingCapacity >= nativeBudget
+    })
     if (candidates.length === 0) {
       throw new Error(`${options.encounter.id} 無法填滿 chart_bars`)
     }

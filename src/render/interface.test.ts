@@ -72,6 +72,8 @@ describe('0.3.0 單畫面三軌 Rogue 介面', () => {
     expect(renderSource).toContain('audioDirector.startTransport({')
     expect(renderSource).toContain('startAtPerformanceMs')
     expect(renderSource).toContain('audioDirector.scheduleBossCall({')
+    expect(renderSource).toContain('audioDirector.scheduleTargetAccent({')
+    expect(renderSource).toContain('targetAtPerformanceMs: targetTime(target.targetBeat)')
     expect(renderSource).toContain('audioDirector.playCounterHit({')
     expect(renderSource).toContain('targetTime(target.targetBeat) - beatMs * 2')
     expect(renderSource).toContain('audioDirector.playModuleResponse(')
@@ -213,6 +215,29 @@ describe('0.3.0 單畫面三軌 Rogue 介面', () => {
       'stableTargetVisualLayouts(battle.targets.slice(battle.cursor))',
     ]) {
       expect(renderSource).toContain(marker)
+    }
+  })
+
+  it('連打命中以獨立軌跡堆疊呈現，不會由下一個普通或完美反擊覆蓋前一筆', () => {
+    for (const marker of [
+      'class="impact-feedback-layer"',
+      'function showImpactFeedback(',
+      "const visibleKinds = new Set(['perfect', 'normal', 'center', 'miss', 'timeout'])",
+      'impactFeedbackLayer.append(feedback)',
+      'impactFeedbackTimers.delete(timer)',
+      'clearImpactFeedbacks()',
+      "showImpactFeedback(event, battle.targets[battle.cursor - 1]?.lane)",
+    ]) {
+      expect(renderSource).toContain(marker)
+    }
+    for (const marker of [
+      '.impact-feedback-layer',
+      '.impact-feedback {',
+      '.impact-feedback strong',
+      '.impact-feedback.is-perfect',
+      '@keyframes impact-arc',
+    ]) {
+      expect(styles).toContain(marker)
     }
   })
 })

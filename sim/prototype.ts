@@ -242,10 +242,10 @@ export function validateContent(): string[] {
     }
     if (
       pattern.allowed_encounters.includes(1) &&
-      (pattern.subdivision !== 4 ||
-        pattern.targets.some((target) => target.lane === 'center'))
+      (pattern.targets.some((target) => target.lane === 'center') ||
+        maxConsecutiveSteps(pattern) > 2)
     ) {
-      violations.push(`${pattern.id} 違反戰 1 左右四分音符限制`)
+      violations.push(`${pattern.id} 違反戰 1 三鍵與短連可讀性限制`)
     }
     if (
       pattern.allowed_encounters.includes(2) &&
@@ -483,7 +483,10 @@ function resolveFight(
   const usedPatternIds: string[] = []
 
   for (const patternId of patternIds) {
-    if (bossIntegrity <= 0 || playerIntegrity <= 0) break
+    // Fixed charts always play to their final native target.  Crossing the
+    // score threshold only starts the bonus coda; it must not truncate the
+    // simulated phrase sequence.
+    if (playerIntegrity <= 0) break
     const pattern = getPattern(patternId)
     usedPatternIds.push(pattern.id)
     bars += pattern.bars
@@ -528,7 +531,7 @@ function resolveFight(
     }
 
     for (const target of baseTargets) {
-      if (bossIntegrity <= 0 || playerIntegrity <= 0) break
+      if (playerIntegrity <= 0) break
       targets += 1
       const alternating =
         isOppositeSide(previousTargetLane, target.lane) ||
@@ -688,8 +691,10 @@ function resolveFight(
         perfectLaneHistory.length = 0
         conductorLane = null
         lastPerfectLane = null
-        if (protectedMisses > 0) protectedMisses -= 1
-        else playerIntegrity -= 1
+        if (bossIntegrity > 0) {
+          if (protectedMisses > 0) protectedMisses -= 1
+          else playerIntegrity -= 1
+        }
         if (circuitBreakerCharges > 0 && !simplifyNext) {
           circuitBreakerCharges -= 1
           simplifyNext = true
