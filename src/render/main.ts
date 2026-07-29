@@ -1,4 +1,6 @@
 import { connect } from '@rogue-paradise/platform-sdk'
+import { audioDirector, type AudioBus } from '../audio/audio-engine.js'
+import { tempoForThreat } from '../audio/music-model.js'
 import {
   advanceAttack,
   beginBattle,
@@ -121,14 +123,45 @@ root.innerHTML = `
       </div>
     </footer>
 
+    <div class="audio-control">
+      <button
+        class="audio-toggle"
+        type="button"
+        aria-expanded="false"
+        aria-controls="audio-panel"
+      >
+        音訊・<span class="tempo-value">96 BPM</span>
+      </button>
+      <section class="audio-panel" id="audio-panel" aria-label="音訊設定" hidden>
+        <div class="audio-panel-heading">
+          <strong>音訊設定</strong>
+          <button class="mute-button" type="button" aria-pressed="false">全部靜音</button>
+        </div>
+        <label>
+          <span>音樂</span>
+          <input data-bus="music" type="range" min="0" max="100" value="52" />
+        </label>
+        <label>
+          <span>效果</span>
+          <input data-bus="effects" type="range" min="0" max="100" value="78" />
+        </label>
+        <label>
+          <span>介面</span>
+          <input data-bus="interface" type="range" min="0" max="100" value="58" />
+        </label>
+        <small>威脅愈高，節奏與聲部愈密集。</small>
+      </section>
+    </div>
+
     <div class="start-overlay">
       <div class="start-card">
-        <span class="eyebrow">垂直切片 0.1.0</span>
+        <span class="eyebrow">節奏戰鬥版 0.2.0</span>
         <h1>反擊愈準，世界愈快。</h1>
         <p>觀察攻擊來向與收縮命中環，在撞擊前按下對應方向。紅色破防不可反擊，必須使用相位。</p>
         <div class="start-rules">
           <span>完美反擊：威脅上升</span>
           <span>威脅愈高：敵我一起加速</span>
+          <span>動態配樂：96–166 BPM 疊加聲部</span>
           <span>威脅達 3：可釋放制動核心</span>
         </div>
         <button class="start-button" type="button">啟動反擊</button>
@@ -176,6 +209,10 @@ const resultTitle = query<HTMLElement>('.result-title')
 const resultCopy = query<HTMLElement>('.result-copy')
 const startButton = query<HTMLButtonElement>('.start-button')
 const restartButton = query<HTMLButtonElement>('.restart-button')
+const audioToggle = query<HTMLButtonElement>('.audio-toggle')
+const audioPanel = query<HTMLElement>('.audio-panel')
+const muteButton = query<HTMLButtonElement>('.mute-button')
+const tempoValue = query<HTMLElement>('.tempo-value')
 
 threatPips.innerHTML = Array.from(
   { length: 5 },
@@ -187,32 +224,22 @@ let attackStartedAt = 0
 let resolveUntil = 0
 let eventShownAt = 0
 let lastEventKey = ''
-let audioContext: AudioContext | null = null
+let lastAttackAudioId = ''
+let endingSoundPlayed = false
 
-function tone(frequency: number, duration: number, gain = 0.05): void {
-  audioContext ??= new AudioContext()
-  const oscillator = audioContext.createOscillator()
-  const volume = audioContext.createGain()
-  oscillator.type = 'triangle'
-  oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime)
-  volume.gain.setValueAtTime(gain, audioContext.currentTime)
-  volume.gain.exponentialRampToValueAtTime(
-    0.0001,
-    audioContext.currentTime + duration,
-  )
-  oscillator.connect(volume)
-  volume.connect(audioContext.destination)
-  oscillator.start()
-  oscillator.stop(audioContext.currentTime + duration)
-}
-
-function begin(): void {
+async function begin(): Promise<void> {
+  await audioDirector.unlock()
+  audioDirector.stopMusic()
+  audioDirector.setThreat(0)
+  audioDirector.startMusic()
+  audioDirector.playInterface('start')
   state = beginBattle(createInitialState('vertical-slice-1'))
   startOverlay.classList.add('is-hidden')
   resultOverlay.hidden = true
+  lastAttackAudioId = ''
+  endingSoundPlayed = false
   attackStartedAt = performance.now()
   shell.focus()
-  tone(180, 0.25, 0.04)
 }
 
 function remaining(now: number): number {
@@ -259,7 +286,7 @@ function placeArrow(direction: Direction, progress: number): void {
 
 function resolveInput(next: GameState, now: number): void {
   if (next === state) {
-    tone(120, 0.05, 0.015)
+    audioDirector.playInterface('invalid')
     return
   }
   state = next
@@ -267,11 +294,7 @@ function resolveInput(next: GameState, now: number): void {
     resolveUntil = now + 430
   }
   const grade = state.lastEvent?.grade
-  if (grade === 'perfect') tone(620 + state.threat * 70, 0.14, 0.075)
-  else if (grade === 'normal') tone(380, 0.1)
-  else if (grade === 'phase') tone(760, 0.18, 0.045)
-  else if (grade === 'core') tone(210, 0.32, 0.08)
-  else if (grade === 'miss') tone(90, 0.24, 0.08)
+  if (grade !== undefined) audioDirector.playResolution(grade)
 }
 
 function handleDirection(direction: Direction, now: number): void {
@@ -308,8 +331,28 @@ window.addEventListener('keydown', (event) => {
   }
 })
 
-startButton.addEventListener('click', begin)
-restartButton.addEventListener('click', begin)
+startButton.addEventListener('click', () => void begin())
+restartButton.addEventListener('click', () => void begin())
+audioToggle.addEventListener('click', () => {
+  const willOpen = audioPanel.hidden
+  audioPanel.hidden = !willOpen
+  audioToggle.setAttribute('aria-expanded', String(willOpen))
+  if (willOpen) audioDirector.playInterface('open')
+})
+muteButton.addEventListener('click', () => {
+  const muted = !audioDirector.currentSettings.muted
+  audioDirector.setMuted(muted)
+  muteButton.setAttribute('aria-pressed', String(muted))
+  muteButton.textContent = muted ? '恢復聲音' : '全部靜音'
+})
+for (const input of audioPanel.querySelectorAll<HTMLInputElement>(
+  'input[data-bus]',
+)) {
+  input.addEventListener('input', () => {
+    const bus = input.dataset.bus as AudioBus
+    audioDirector.setBusVolume(bus, Number(input.value) / 100)
+  })
+}
 
 function renderPips(
   container: HTMLElement,
@@ -326,6 +369,10 @@ function renderPips(
 function render(now: number): void {
   shell.dataset.threat = String(state.threat)
   shell.dataset.stage = state.stage
+  audioDirector.setThreat(state.threat)
+  const tempo = tempoForThreat(state.threat)
+  tempoValue.textContent = `${tempo} BPM`
+  shell.style.setProperty('--beat-duration', `${60 / tempo}s`)
   threatValue.textContent = String(state.threat)
   for (const pip of threatPips.querySelectorAll<HTMLElement>('i')) {
     pip.classList.toggle(
@@ -347,6 +394,10 @@ function render(now: number): void {
 
   const attack = state.currentAttack
   if (state.stage === 'telegraph' && attack !== null) {
+    if (attack.id !== lastAttackAudioId) {
+      lastAttackAudioId = attack.id
+      audioDirector.playAttack(attack.direction, !attack.counterable, state.threat)
+    }
     const timeLeft = remaining(now)
     const progress = Math.max(
       0,
@@ -430,13 +481,20 @@ function render(now: number): void {
   }
 
   if ((state.stage === 'won' || state.stage === 'lost') && resultOverlay.hidden) {
+    if (!endingSoundPlayed) {
+      endingSoundPlayed = true
+      audioDirector.stopMusic()
+      audioDirector.playInterface(
+        state.stage === 'won' ? 'victory' : 'defeat',
+      )
+    }
     resultOverlay.hidden = false
     resultTitle.textContent =
       state.stage === 'won' ? '棱鏡監工已崩解' : '反擊核心已離線'
     resultCopy.textContent =
       state.stage === 'won'
         ? `你以威脅 ${state.threat} 結束戰鬥，最高連續成功 ${state.combo}。`
-        : '觀察命中環而不是只看箭頭；紅色攻擊必須使用相位。'
+        : '觀察固定鍵位與命中環；紅色攻擊必須使用相位。'
   }
 
   requestAnimationFrame(render)

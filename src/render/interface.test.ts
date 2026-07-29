@@ -25,10 +25,27 @@ describe('單畫面繁體中文介面', () => {
       '反擊窗口',
       '制動核心',
       '方向反擊',
+      '音訊設定',
+      '全部靜音',
+      '音樂',
+      '效果',
+      '介面',
       '重新挑戰',
     ]) {
       expect(visibleTemplate).toContain(label)
     }
+  })
+
+  it('音訊需由玩家操作解鎖，並提供三組音量與全域靜音', () => {
+    expect(renderSource).toContain("await audioDirector.unlock()")
+    expect(renderSource).toContain("audioDirector.startMusic()")
+    expect(renderSource.indexOf('await audioDirector.unlock()')).toBeLessThan(
+      renderSource.indexOf('audioDirector.startMusic()'),
+    )
+    for (const bus of ['music', 'effects', 'interface']) {
+      expect(visibleTemplate).toContain(`data-bus="${bus}"`)
+    }
+    expect(visibleTemplate).toContain('class="mute-button"')
   })
 
   it('使用固定鍵位提示，不以箭頭朝向代表應按方向', () => {

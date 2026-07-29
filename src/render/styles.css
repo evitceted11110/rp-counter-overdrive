@@ -30,6 +30,7 @@ kbd {
   --amber: #ffb44d;
   --red: #ff4664;
   --panel: rgb(7 15 22 / 88%);
+  --beat-duration: 0.625s;
   position: relative;
   display: grid;
   grid-template-rows: 74px minmax(0, 1fr) 92px;
@@ -334,7 +335,7 @@ kbd {
   box-shadow:
     0 0 24px white,
     0 0 70px var(--cyan);
-  animation: core-pulse 1.2s ease-in-out infinite;
+  animation: core-pulse var(--beat-duration) ease-in-out infinite;
 }
 
 .counter-ring {
@@ -666,6 +667,98 @@ kbd {
 .seed-label {
   width: 100%;
   text-align: right;
+}
+
+.audio-control {
+  position: absolute;
+  top: 82px;
+  right: 18px;
+  z-index: 120;
+}
+
+.audio-toggle,
+.mute-button {
+  border: 1px solid rgb(101 236 255 / 28%);
+  border-radius: 3px;
+  background: rgb(5 14 20 / 92%);
+  color: #dffaff;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+}
+
+.audio-toggle {
+  width: 142px;
+  padding: 8px 10px;
+  letter-spacing: 0.04em;
+}
+
+.audio-toggle:hover,
+.mute-button:hover {
+  border-color: var(--cyan);
+  color: white;
+}
+
+.tempo-value {
+  color: var(--cyan);
+}
+
+.audio-panel {
+  display: grid;
+  width: 246px;
+  gap: 11px;
+  margin-top: 7px;
+  padding: 14px;
+  border: 1px solid rgb(101 236 255 / 24%);
+  border-radius: 3px;
+  background: rgb(4 11 17 / 96%);
+  box-shadow: 0 18px 50px rgb(0 0 0 / 55%);
+  backdrop-filter: blur(12px);
+}
+
+.audio-panel[hidden] {
+  display: none;
+}
+
+.audio-panel-heading,
+.audio-panel label {
+  display: grid;
+  grid-template-columns: 58px 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.audio-panel-heading {
+  grid-template-columns: 1fr auto;
+  padding-bottom: 9px;
+  border-bottom: 1px solid rgb(101 236 255 / 12%);
+}
+
+.audio-panel-heading strong {
+  font-size: 13px;
+}
+
+.mute-button {
+  padding: 5px 7px;
+  color: #9cc3cc;
+}
+
+.audio-panel label span {
+  color: #9ab7c0;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.audio-panel input[type="range"] {
+  width: 100%;
+  accent-color: var(--cyan);
+}
+
+.audio-panel small {
+  color: #78949d;
+  font-size: 10px;
+  line-height: 1.45;
 }
 
 .start-overlay,

@@ -5,6 +5,7 @@
     "types": ["node", "vite/client"]
   },
   "include": [
+    "src/audio/**/*.ts",
     "src/render/**/*.ts",
     "src/visual/**/*.ts",
     "sim/**/*.ts",

@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "game": "counter-overdrive",
+  "events": {
+    "battle.start": {
+      "bus": "interface",
+      "cue": "三音上行啟動",
+      "visualFallback": "開始覆蓋層淡出"
+    },
+    "attack.telegraph": {
+      "bus": "effects",
+      "cue": "方向聲像短脈衝",
+      "visualFallback": "固定鍵位高亮與能量脈衝"
+    },
+    "attack.breach": {
+      "bus": "effects",
+      "cue": "低頻雙音破防警報",
+      "visualFallback": "紅色破防、Shift 相位提示"
+    },
+    "counter.normal": {
+      "bus": "effects",
+      "cue": "金屬感上揚",
+      "visualFallback": "普通反擊文字與傷害數字"
+    },
+    "counter.perfect": {
+      "bus": "effects",
+      "cue": "明亮三和弦與高音尾奏",
+      "visualFallback": "青色全畫面閃光與完美反擊文字"
+    },
+    "counter.miss": {
+      "bus": "effects",
+      "cue": "低頻失諧撞擊",
+      "visualFallback": "紅色閃光、完整度下降"
+    },
+    "phase.success": {
+      "bus": "effects",
+      "cue": "左右交錯掃頻",
+      "visualFallback": "紫色相位成功文字"
+    },
+    "core.release": {
+      "bus": "effects",
+      "cue": "低頻和弦與下墜掃頻",
+      "visualFallback": "琥珀色閃光與制動釋放文字"
+    },
+    "battle.victory": {
+      "bus": "interface",
+      "cue": "四音上行終止式",
+      "visualFallback": "勝利結算覆蓋層"
+    },
+    "battle.defeat": {
+      "bus": "interface",
+      "cue": "四音下行離線動機",
+      "visualFallback": "失敗結算覆蓋層"
+    }
+  }
+}
+
