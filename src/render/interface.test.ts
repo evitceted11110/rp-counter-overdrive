@@ -48,6 +48,23 @@ describe('0.3.0 單畫面三軌 Rogue 介面', () => {
     }
   })
 
+  it('提供預設關閉的測試用自動點擊，且只經既有判定入口結算', () => {
+    expect(visibleTemplate).toContain('測試用・自動點擊：關')
+    for (const marker of [
+      'let autoClickEnabled = false',
+      'function scheduleAutoClick()',
+      'function stopAutoClick()',
+      'handleAction(target.lane, targetAt)',
+      'autoClickEnabled = !autoClickEnabled',
+      'stopAutoClick()',
+      'battlePaused ||',
+      'ending !== null',
+    ]) {
+      expect(renderSource).toContain(marker)
+    }
+    expect(styles).toContain('.autoplay-toggle')
+  })
+
   it('音訊由玩家選擇後解鎖，並與 performance timeline 共用時間', () => {
     expect(renderSource).toContain('audioDirector.unlock()')
     expect(renderSource).toContain('audioDirector.startTransport({')
@@ -155,6 +172,21 @@ describe('0.3.0 單畫面三軌 Rogue 介面', () => {
       '.track-target.is-close small',
     ]) {
       expect(styles).toContain(marker)
+    }
+  })
+
+  it('連續左軌三音符的隊列位置固定：前一顆結算後，剩餘音符不會重新置中跳位', () => {
+    for (const marker of [
+      'let targetVisualSlots = new Map<string, TargetVisualLayout>()',
+      'function stableTargetVisualLayouts(',
+      'const existing = targetVisualSlots.get(target.id)',
+      'if (existing !== undefined) return existing',
+      'targetVisualSlots.set(target.id, proposed)',
+      'targetVisualSlots = new Map()',
+      'stableTargetVisualLayouts(battle.targets)',
+      'stableTargetVisualLayouts(battle.targets.slice(battle.cursor))',
+    ]) {
+      expect(renderSource).toContain(marker)
     }
   })
 })

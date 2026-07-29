@@ -766,6 +766,28 @@ kbd {
   color: #ffd69d;
 }
 
+.autoplay-toggle {
+  padding: 5px 7px;
+  border: 1px dashed rgb(255 189 89 / 42%);
+  background: rgb(35 25 10 / 88%);
+  color: #ffdda8;
+  font-size: 9px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.autoplay-toggle[aria-pressed='true'] {
+  border-style: solid;
+  border-color: var(--amber);
+  color: #fff0d0;
+  box-shadow: 0 0 14px rgb(255 189 89 / 24%);
+}
+
+.autoplay-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.44;
+}
+
 .control-button span {
   font-size: 9px;
 }

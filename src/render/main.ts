@@ -161,7 +161,7 @@ root.innerHTML = `
   <section class="game-shell" tabindex="-1" aria-label="反擊超載遊戲">
     <header class="top-hud">
       <div class="brand-block">
-        <span class="eyebrow">三軌節奏隨機冒險 0.3.2</span>
+        <span class="eyebrow">三軌節奏隨機冒險 0.3.3</span>
         <strong>反擊超載</strong>
       </div>
       <div class="run-progress" aria-label="本局進度">
@@ -242,6 +242,9 @@ root.innerHTML = `
         <button class="control-button left-button" type="button"><kbd>←</kbd><span>左軌</span></button>
         <button class="control-button center-button" type="button"><kbd>空白</kbd><span>中央</span></button>
         <button class="control-button right-button" type="button"><kbd>→</kbd><span>右軌</span></button>
+        <button class="autoplay-toggle" type="button" aria-pressed="false">
+          測試用・自動點擊：關
+        </button>
         <span class="seed-label">本局種子：COUNTER-OVERDRIVE-1</span>
       </div>
     </footer>
@@ -303,6 +306,7 @@ const audioPanel = query<HTMLElement>('.audio-panel')
 const muteButton = query<HTMLButtonElement>('.mute-button')
 const audioTempo = query<HTMLElement>('.audio-tempo')
 const seedLabel = query<HTMLElement>('.seed-label')
+const autoplayToggle = query<HTMLButtonElement>('.autoplay-toggle')
 
 let runNumber = 1
 let run: RunState = createRunState('COUNTER-OVERDRIVE-1', runCatalog)
@@ -311,11 +315,14 @@ let timeline: BeatTimeline | null = null
 let transport: RhythmTransport | null = null
 let timeoutId: number | null = null
 let scheduledTargetIds = new Set<string>()
+let targetVisualSlots = new Map<string, TargetVisualLayout>()
 let impactUntil = 0
 let lastEventIdentity = ''
 let battlePaused = false
 let ending: { won: boolean; finishAt: number } | null = null
 let endingTimeoutId: number | null = null
+let autoClickEnabled = false
+let autoClickTimeoutId: number | null = null
 
 function currentEncounter(): EncounterDefinition {
   const encounter = encounters.find((item) => item.encounter === run.encounter)
@@ -534,6 +541,30 @@ function targetVisualLayouts(
   return layouts
 }
 
+/**
+ * 目標一旦在畫面上取得隊列位置，直到被結算前都不能重新置中。否則
+ * 左、左、左的第一個目標消失時，後兩個會從 0／+ 改成 -／+，造成
+ * 玩家正要讀下一顆音符時橫向跳動。
+ */
+function stableTargetVisualLayouts(
+  targets: readonly BattleRuntimeState['targets'][number][],
+): TargetVisualLayout[] {
+  const proposedLayouts = targetVisualLayouts(targets)
+  return targets.map((target, index) => {
+    const existing = targetVisualSlots.get(target.id)
+    if (existing !== undefined) return existing
+    const proposed = proposedLayouts[index] ?? {
+      order: index + 1,
+      isClose: false,
+      closeIndex: 0,
+      closeCount: 0,
+      queueShiftPx: 0,
+    }
+    targetVisualSlots.set(target.id, proposed)
+    return proposed
+  })
+}
+
 function updateProgress(): void {
   const nodes = [...root.querySelectorAll<HTMLElement>('.run-node')]
   const activeIndex =
@@ -590,13 +621,15 @@ function phrasePreview(preview: PhrasePreview | undefined): string {
 }
 
 function showChoice(): void {
+  stopAutoClick()
   audioDirector.stopTransport()
   choiceOverlay.hidden = false
+  updateAutoClickControl()
   updateProgress()
   renderBuild()
   if (run.phase === 'choose-core') {
     choicePanel.innerHTML = `
-      <span class="choice-kicker">0.3.2 隨機冒險</span>
+      <span class="choice-kicker">0.3.3 隨機冒險</span>
       <h1>選擇本局的反擊規則</h1>
       <p>三個核心都不增加按鍵；它們會被動改寫你追逐的節奏。</p>
       <div class="choice-grid">${run.coreChoices.map((choice) => itemCard(choice, 'core')).join('')}</div>
@@ -647,6 +680,7 @@ function showChoice(): void {
 }
 
 async function startEncounter(): Promise<void> {
+  stopAutoClick()
   const encounter = currentEncounter()
   const route = run.routeId === null ? undefined : allRoutes.get(run.routeId)
   battle = createBattleState({
@@ -664,6 +698,8 @@ async function startEncounter(): Promise<void> {
   })
   transport = new RhythmTransport(timeline, { nowMs: () => performance.now() })
   scheduledTargetIds = new Set()
+  targetVisualSlots = new Map()
+  stableTargetVisualLayouts(battle.targets)
   battlePaused = false
   ending = null
   if (endingTimeoutId !== null) {
@@ -676,6 +712,7 @@ async function startEncounter(): Promise<void> {
     startAtPerformanceMs,
   })
   choiceOverlay.hidden = true
+  updateAutoClickControl()
   shell.focus()
   centerLane.classList.toggle('locked', encounter.encounter === 1)
   bossName.textContent = encounter.name
@@ -691,6 +728,7 @@ async function startEncounter(): Promise<void> {
   renderBuild()
   scheduleUpcomingTargets()
   scheduleCurrentTimeout()
+  scheduleAutoClick()
 }
 
 function targetTime(targetBeat: number): number {
@@ -759,8 +797,10 @@ function rescheduleRemainingTargetsAfterPause(): void {
 }
 
 function pauseBattleForInterruption(): void {
+  stopAutoClick()
   if (battle === null || battlePaused || ending !== null) return
   battlePaused = true
+  updateAutoClickControl()
   clearBattleTimeout()
   audioDirector.stopTransport()
 }
@@ -889,6 +929,61 @@ function afterResolution(targetAtPerformanceMs?: number): void {
   }
   scheduleUpcomingTargets()
   scheduleCurrentTimeout()
+  scheduleAutoClick()
+}
+
+function updateAutoClickControl(): void {
+  autoplayToggle.setAttribute('aria-pressed', String(autoClickEnabled))
+  autoplayToggle.textContent = `測試用・自動點擊：${autoClickEnabled ? '開' : '關'}`
+  autoplayToggle.disabled =
+    battle === null || battlePaused || ending !== null || !choiceOverlay.hidden
+}
+
+function stopAutoClick(): void {
+  autoClickEnabled = false
+  if (autoClickTimeoutId !== null) {
+    window.clearTimeout(autoClickTimeoutId)
+    autoClickTimeoutId = null
+  }
+  updateAutoClickControl()
+}
+
+function scheduleAutoClick(): void {
+  if (autoClickTimeoutId !== null) {
+    window.clearTimeout(autoClickTimeoutId)
+    autoClickTimeoutId = null
+  }
+  if (
+    !autoClickEnabled ||
+    battle === null ||
+    transport === null ||
+    battlePaused ||
+    ending !== null
+  ) {
+    updateAutoClickControl()
+    return
+  }
+  const target = battle.targets[battle.cursor]
+  if (target === undefined) {
+    stopAutoClick()
+    return
+  }
+  const targetAt = transport.targetTimeMs(target.targetBeat)
+  autoClickTimeoutId = window.setTimeout(() => {
+    autoClickTimeoutId = null
+    if (
+      !autoClickEnabled ||
+      battle === null ||
+      transport === null ||
+      battlePaused ||
+      ending !== null ||
+      battle.targets[battle.cursor]?.id !== target.id
+    ) {
+      return
+    }
+    // 只走與真人相同的 handleAction；不改動本局種子、目標或亂數。
+    handleAction(target.lane, targetAt)
+  }, Math.max(0, targetAt - performance.now()))
 }
 
 function handleAction(action: CombatAction, inputPerformanceMs: number): void {
@@ -919,6 +1014,7 @@ function handleAction(action: CombatAction, inputPerformanceMs: number): void {
 
 function endEncounter(): void {
   if (battle === null || ending !== null) return
+  stopAutoClick()
   clearBattleTimeout()
   scheduledTargetIds = new Set()
   battlePaused = true
@@ -928,6 +1024,7 @@ function endEncounter(): void {
     won,
     finishAt: performance.now() + finale.durationMs,
   }
+  updateAutoClickControl()
   endingTimeoutId = window.setTimeout(() => {
     finishEncounterAfterFinale()
   }, finale.durationMs)
@@ -951,6 +1048,7 @@ function finishEncounterAfterFinale(): void {
 }
 
 function restartRun(): void {
+  stopAutoClick()
   if (endingTimeoutId !== null) {
     window.clearTimeout(endingTimeoutId)
     endingTimeoutId = null
@@ -1022,6 +1120,16 @@ query<HTMLButtonElement>('.right-button').addEventListener('click', () => {
   handleAction('right', audioDirector.calibratedInputTime(performance.now()))
 })
 
+autoplayToggle.addEventListener('click', () => {
+  autoClickEnabled = !autoClickEnabled
+  if (!autoClickEnabled) {
+    stopAutoClick()
+    return
+  }
+  updateAutoClickControl()
+  scheduleAutoClick()
+})
+
 audioToggle.addEventListener('click', () => {
   const open = audioPanel.hidden
   audioPanel.hidden = !open
@@ -1085,10 +1193,10 @@ function render(now: number): void {
     const preview = battle.targets
       .slice(battle.cursor, battle.cursor + 10)
       .filter((target) => target.targetBeat - beat < 8)
-    const layouts = targetVisualLayouts(preview)
+    stableTargetVisualLayouts(battle.targets.slice(battle.cursor))
     targetLayer.innerHTML = preview
       .map((target, index) => {
-        const layout = layouts[index] ?? {
+        const layout = targetVisualSlots.get(target.id) ?? {
           order: index + 1,
           isClose: false,
           closeIndex: 0,
