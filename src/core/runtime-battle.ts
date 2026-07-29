@@ -614,6 +614,43 @@ function missBattle(
   }
 }
 
+/**
+ * 快速八分音符會讓普通判定窗重疊（例如 132 BPM 的音符間距為
+ * 227.27ms，普通窗卻是 ±120ms）。交界輸入要交給較近的目標，而不能
+ * 因為前一顆仍是 cursor target 就被前一顆吞掉。
+ */
+function resolveNearestAdjacentTarget(
+  state: BattleRuntimeState,
+  action: CombatAction,
+  timingOffsetMs: number,
+): BattleRuntimeState | null {
+  const current = state.targets[state.cursor]
+  const next = state.targets[state.cursor + 1]
+  if (current === undefined || next === undefined) return null
+
+  const gapBeats = next.targetBeat - current.targetBeat
+  if (!Number.isFinite(gapBeats) || gapBeats <= 0) return null
+  const gapMs = (gapBeats * 60_000) / state.encounter.bpm
+  const nextOffsetMs = timingOffsetMs - gapMs
+  const isCloserToNext = timingOffsetMs > gapMs / 2
+  const isWithinNextWindow =
+    Math.abs(nextOffsetMs) <= state.encounter.normalWindowMs
+  if (!isCloserToNext || !isWithinNextWindow) return null
+
+  // 前一顆漏接仍要結算；只是把這一次輸入重新綁定到較近的下一顆。
+  // 這也避免延遲的 timeout callback 把有效的下一拍輸入變成錯軌失誤。
+  const afterPreviousMiss = missBattle(state, timingOffsetMs, true)
+  const reboundTarget = afterPreviousMiss.targets[afterPreviousMiss.cursor]
+  if (
+    afterPreviousMiss.playerIntegrity <= 0 ||
+    afterPreviousMiss.bossIntegrity <= 0 ||
+    reboundTarget?.id !== next.id
+  ) {
+    return afterPreviousMiss
+  }
+  return resolveBattleAction(afterPreviousMiss, action, nextOffsetMs)
+}
+
 export function resolveBattleAction(
   state: BattleRuntimeState,
   action: CombatAction,
@@ -640,6 +677,13 @@ export function resolveBattleAction(
     state.encounter.perfectWindowMs -
       (ratchetActive ? value(ratchet, 'perfect_window_penalty_ms', 20) : 0),
   )
+
+  const nearestAdjacent = resolveNearestAdjacentTarget(
+    state,
+    action,
+    timingOffsetMs,
+  )
+  if (nearestAdjacent !== null) return nearestAdjacent
 
   if (timingOffsetMs < -normalWindow) {
     return {

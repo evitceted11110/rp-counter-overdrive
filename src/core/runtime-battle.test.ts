@@ -242,6 +242,37 @@ describe('資料化戰鬥 runtime core', () => {
     )
   })
 
+  it('相鄰八分音符的重疊窗會把交界輸入交給較近的下一顆', () => {
+    // 132 BPM 的八分音符相距約 227.27ms；原本 ±120ms 窗口在
+    // 113.64ms 之後重疊。輸入在 120ms 時較接近下一顆，不能被
+    // 前一顆以 wrong-lane 吞掉。
+    const adjacent = battleWith([], [
+      target('left', { id: 'first', targetBeat: 4 }),
+      target('right', { id: 'second', targetBeat: 4.5 }),
+    ])
+    const resolved = resolveBattleAction(adjacent, 'right', 120)
+
+    expect(resolved.cursor).toBe(2)
+    expect(resolved.lastEvent?.kind).toBe('normal')
+    expect(resolved.lastEvent?.timingOffsetMs).toBeCloseTo(
+      120 - 30_000 / 132,
+    )
+    // 前一顆仍會被判為漏接，但這次按鍵要正確結算到下一顆。
+    expect(resolved.playerIntegrity).toBe(adjacent.playerIntegrity - 1)
+  })
+
+  it('相鄰音符的交界以前仍保持目前目標的判定', () => {
+    const adjacent = battleWith([], [
+      target('left', { id: 'first', targetBeat: 4 }),
+      target('right', { id: 'second', targetBeat: 4.5 }),
+    ])
+    const resolved = resolveBattleAction(adjacent, 'left', 100)
+
+    expect(resolved.cursor).toBe(1)
+    expect(resolved.lastEvent?.kind).toBe('normal')
+    expect(resolved.playerIntegrity).toBe(adjacent.playerIntegrity)
+  })
+
   it('交替核心、交叉導體與同側棘輪會改變傷害或窗口', () => {
     const resonance = effect('alternating-perfect-echo', 'cross-resonance')
     const conductor = effect('opposite-lane-window', 'cross-conductor')

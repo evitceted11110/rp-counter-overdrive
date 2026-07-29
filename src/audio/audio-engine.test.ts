@@ -4,6 +4,19 @@ import { describe, expect, it } from 'vitest'
 const source = readFileSync(new URL('./audio-engine.ts', import.meta.url), 'utf8')
 
 describe('Boss call 相位音訊契約', () => {
+  it('命中確認聲以玩家按下的現在時間播放，只有樂句裝飾保留格點對齊', () => {
+    expect(source).toContain('const feedbackAt = this.resolveContextTime()')
+    expect(source).toContain(
+      'const musicalAt = this.resolveContextTime(options.atPerformanceMs)',
+    )
+    expect(source).toContain(
+      "this.playLaneCue(options.lane, feedbackAt, true, 'player')",
+    )
+    expect(source).toContain("'triangle',\n        musicalAt,")
+    expect(source).toContain('at: musicalAt + eighthSecondsForTier(this.tempoTier)')
+    expect(source).toContain('this.duckMusicalBed(4.5, feedbackAt, 0.13)')
+  })
+
   it('統一 pickup 只在 slot 3，不能為每個 target 排入 response 區', () => {
     expect(source).toContain("if (position.slot === 3) {")
     expect(source).toContain("this.pickup(at, 'center')")

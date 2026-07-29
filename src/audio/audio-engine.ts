@@ -324,10 +324,15 @@ export class CounterOverdriveAudio {
 
   playCounterHit(options: CounterHitOptions): void {
     if (this.finalizing) return
-    const at = this.resolveContextTime(options.atPerformanceMs)
+    // 判定容許提早／延後命中時，不能把「玩家已按下」的確認聲排回
+    // 目標格點：提早完美會因此晚響，延後完美又會因為過去時間被夾到
+    // now 而立刻響，兩者會產生不一致的手感。第一個擊中聲永遠立即播放；
+    // 和弦與尾音才保留在格點上，讓音樂仍能鎖住 transport。
+    const feedbackAt = this.resolveContextTime()
+    const musicalAt = this.resolveContextTime(options.atPerformanceMs)
     this.lastLane = options.lane
     if (options.grade === 'perfect') {
-      this.playLaneCue(options.lane, at, true, 'player')
+      this.playLaneCue(options.lane, feedbackAt, true, 'player')
       const root = laneFrequency(options.lane) * 2
       this.chord(
         [root, root * 1.5, root * 2],
@@ -335,7 +340,7 @@ export class CounterOverdriveAudio {
         0.074,
         'effects',
         'triangle',
-        at,
+        musicalAt,
       )
       this.voice({
         bus: 'effects',
@@ -343,16 +348,16 @@ export class CounterOverdriveAudio {
         endFrequency: root * 2.5,
         duration: eighthSecondsForTier(this.tempoTier) * 0.8,
         gain: 0.032,
-        at: at + eighthSecondsForTier(this.tempoTier),
+        at: musicalAt + eighthSecondsForTier(this.tempoTier),
         pan: lanePan(options.lane) * 0.45,
         type: 'sine',
       })
-      this.duckMusicalBed(4.5, at, 0.13)
+      this.duckMusicalBed(4.5, feedbackAt, 0.13)
     } else if (options.grade === 'normal') {
-      this.playLaneCue(options.lane, at, false, 'player')
-      this.duckMusicalBed(2.5, at, 0.09)
+      this.playLaneCue(options.lane, feedbackAt, false, 'player')
+      this.duckMusicalBed(2.5, feedbackAt, 0.09)
     } else {
-      this.mutedThud(at, options.lane)
+      this.mutedThud(feedbackAt, options.lane)
     }
   }
 

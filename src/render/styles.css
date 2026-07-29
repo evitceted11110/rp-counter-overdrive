@@ -440,7 +440,7 @@ kbd {
   width: 33.333%;
   place-items: center;
   color: var(--cyan);
-  transform: translateY(-50%);
+  transform: translate(var(--queue-shift, 0px), -50%);
   transition: top 16ms linear;
 }
 
@@ -451,6 +451,34 @@ kbd {
 .track-target.center {
   left: 33.333%;
   color: var(--amber);
+}
+
+.track-target.is-close {
+  z-index: 7;
+  filter: drop-shadow(0 0 7px rgb(101 236 255 / 22%));
+}
+
+.track-target em {
+  position: absolute;
+  z-index: 2;
+  top: -9px;
+  left: calc(50% - 29px);
+  display: grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: #07131b;
+  color: #dffaff;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.track-target.center em {
+  color: #ffe0a8;
 }
 
 .track-target b {
@@ -472,6 +500,10 @@ kbd {
 
 .track-target.current b {
   animation: target-pulse 0.5s ease-in-out infinite alternate;
+}
+
+.track-target.current {
+  z-index: 12;
 }
 
 .track-target.capacitor b,
@@ -510,6 +542,21 @@ kbd {
   background: rgb(4 10 14 / 78%);
   color: #8ca8b1;
   font-size: 8px;
+}
+
+.track-target.is-close small {
+  min-width: 52px;
+  border: 1px solid rgb(101 236 255 / 28%);
+  background: #08161e;
+  color: #dffaff;
+  font-weight: 850;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.track-target.center.is-close small {
+  border-color: rgb(255 189 89 / 34%);
+  color: #ffe0a8;
 }
 
 .hit-line {

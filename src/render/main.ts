@@ -161,7 +161,7 @@ root.innerHTML = `
   <section class="game-shell" tabindex="-1" aria-label="反擊超載遊戲">
     <header class="top-hud">
       <div class="brand-block">
-        <span class="eyebrow">三軌節奏隨機冒險 0.3.1</span>
+        <span class="eyebrow">三軌節奏隨機冒險 0.3.2</span>
         <strong>反擊超載</strong>
       </div>
       <div class="run-progress" aria-label="本局進度">
@@ -463,6 +463,77 @@ function targetBuildClass(target: BattleRuntimeState['targets'][number]): string
     .join(' ')
 }
 
+type TargetVisualLayout = {
+  order: number
+  isClose: boolean
+  closeIndex: number
+  closeCount: number
+  queueShiftPx: number
+}
+
+/**
+ * 八分音符在同一軌連續出現時，實際節拍位置只相差半拍；若直接疊在
+ * 同一個軌道中央，目標牌會互相遮住。保留垂直節拍位置，同時把同軌的
+ * 近距目標展成可讀的短隊列，讓玩家先看順序與按鍵，而不是猜哪張在前。
+ */
+function targetVisualLayouts(
+  targets: readonly BattleRuntimeState['targets'][number][],
+): TargetVisualLayout[] {
+  const layouts = targets.map((_, order) => ({
+    order: order + 1,
+    isClose: false,
+    closeIndex: 0,
+    closeCount: 0,
+    queueShiftPx: 0,
+  }))
+  const closeBeatDistance = 0.6
+
+  for (const lane of ['left', 'center', 'right'] as const) {
+    const laneIndexes = targets
+      .map((target, index) => (target.lane === lane ? index : -1))
+      .filter((index) => index >= 0)
+    let groupStart = 0
+
+    while (groupStart < laneIndexes.length) {
+      let groupEnd = groupStart + 1
+      while (groupEnd < laneIndexes.length) {
+        const nextIndex = laneIndexes[groupEnd]
+        const previousIndex = laneIndexes[groupEnd - 1]
+        const nextTarget = nextIndex === undefined ? undefined : targets[nextIndex]
+        const previousTarget =
+          previousIndex === undefined ? undefined : targets[previousIndex]
+        if (
+          nextTarget === undefined ||
+          previousTarget === undefined ||
+          nextTarget.targetBeat - previousTarget.targetBeat > closeBeatDistance
+        ) {
+          break
+        }
+        groupEnd += 1
+      }
+
+      const closeCount = groupEnd - groupStart
+      if (closeCount > 1) {
+        const spacingPx = lane === 'center' ? 76 : 56
+        for (let localIndex = 0; localIndex < closeCount; localIndex += 1) {
+          const targetIndex = laneIndexes[groupStart + localIndex]
+          if (targetIndex === undefined || layouts[targetIndex] === undefined) continue
+          layouts[targetIndex] = {
+            ...layouts[targetIndex],
+            isClose: true,
+            closeIndex: localIndex + 1,
+            closeCount,
+            queueShiftPx: (localIndex - (closeCount - 1) / 2) * spacingPx,
+          }
+        }
+      }
+      groupStart = groupEnd
+    }
+  }
+
+  return layouts
+}
+
 function updateProgress(): void {
   const nodes = [...root.querySelectorAll<HTMLElement>('.run-node')]
   const activeIndex =
@@ -525,7 +596,7 @@ function showChoice(): void {
   renderBuild()
   if (run.phase === 'choose-core') {
     choicePanel.innerHTML = `
-      <span class="choice-kicker">0.3.1 隨機冒險</span>
+      <span class="choice-kicker">0.3.2 隨機冒險</span>
       <h1>選擇本局的反擊規則</h1>
       <p>三個核心都不增加按鍵；它們會被動改寫你追逐的節奏。</p>
       <div class="choice-grid">${run.coreChoices.map((choice) => itemCard(choice, 'core')).join('')}</div>
@@ -1014,15 +1085,27 @@ function render(now: number): void {
     const preview = battle.targets
       .slice(battle.cursor, battle.cursor + 10)
       .filter((target) => target.targetBeat - beat < 8)
+    const layouts = targetVisualLayouts(preview)
     targetLayer.innerHTML = preview
       .map((target, index) => {
+        const layout = layouts[index] ?? {
+          order: index + 1,
+          isClose: false,
+          closeIndex: 0,
+          closeCount: 0,
+          queueShiftPx: 0,
+        }
         const delta = target.targetBeat - beat
         const top = 82 - (delta / 7) * 76
         const label =
           target.lane === 'left' ? '←' : target.lane === 'right' ? '→' : '空白'
+        const closeLabel = layout.isClose
+          ? `連打 ${layout.closeIndex}/${layout.closeCount}`
+          : target.patternName
+        const readableLane = laneLabel(target.lane)
         return `<div class="track-target ${target.lane} ${target.source} ${targetBuildClass(
           target,
-        )} ${index === 0 ? 'current' : ''}" style="top:${top}%"><b>${label}</b><small>${target.patternName}</small></div>`
+        )} ${layout.isClose ? 'is-close' : ''} ${index === 0 ? 'current' : ''}" data-order="${layout.order}" style="top:${top}%;--queue-shift:${layout.queueShiftPx}px" aria-label="第 ${layout.order} 個目標：${readableLane}，按 ${label}，${closeLabel}"><em>${layout.order}</em><b>${label}</b><small>${closeLabel}</small></div>`
       })
       .join('')
   } else {

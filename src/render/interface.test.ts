@@ -135,4 +135,26 @@ describe('0.3.0 單畫面三軌 Rogue 介面', () => {
       expect(styles).toContain(marker)
     }
   })
+
+  it('同軌近距音符會以順序與橫向短隊列呈現，不會重疊成難辨的一團', () => {
+    for (const marker of [
+      'function targetVisualLayouts(',
+      'closeBeatDistance = 0.6',
+      'queueShiftPx',
+      "layout.isClose ? 'is-close' : ''",
+      '連打 ${layout.closeIndex}/${layout.closeCount}',
+      'data-order="${layout.order}"',
+      'aria-label="第 ${layout.order} 個目標',
+    ]) {
+      expect(renderSource).toContain(marker)
+    }
+    for (const marker of [
+      '.track-target.is-close',
+      'translate(var(--queue-shift, 0px), -50%)',
+      '.track-target em',
+      '.track-target.is-close small',
+    ]) {
+      expect(styles).toContain(marker)
+    }
+  })
 })
