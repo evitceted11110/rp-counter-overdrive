@@ -62,6 +62,17 @@ export type CounterHitOptions = {
   atPerformanceMs?: number
 }
 
+/** 戰鬥結束時唯一允許播放的非操作收束音樂。 */
+export type EncounterFinaleOutcome = 'victory' | 'defeat'
+
+export type EncounterFinaleSnapshot = {
+  outcome: EncounterFinaleOutcome
+  startsAtPerformanceMs: number
+  endsAtPerformanceMs: number
+  /** 一個完整 4/4 收束小節加上尾韻，render 應在此後再切換畫面。 */
+  durationMs: number
+}
+
 export type ModuleAudioKind =
   | 'echo-blade'
   | 'downbeat-capacitor'
@@ -94,7 +105,7 @@ type NoiseOptions = {
 
 const defaultSettings: AudioSettings = {
   muted: false,
-  music: 0.56,
+  music: 0.64,
   effects: 0.78,
   interface: 0.58,
 }
@@ -138,6 +149,11 @@ export class CounterOverdriveAudio {
   private interruptionHandler: (() => void) | null = null
   private pendingBossCalls = new Map<number, PendingBossCall>()
   private nextBossCallId = 0
+  /**
+   * 終曲開始後，戰鬥目標的 call／response 都必須靜音；只有 finale
+   * 自己排出的收束小節可以繼續播放。
+   */
+  private finalizing = false
 
   get tempo(): number {
     return tempoForTier(this.tempoTier)
@@ -165,6 +181,7 @@ export class CounterOverdriveAudio {
       this.tempoTier = normalizeTempoTier(options.tempoTier)
       this.pendingTempoTier = null
     }
+    this.finalizing = false
     if (context === null || this.schedulerId !== null) {
       return this.getTransportSnapshot()
     }
@@ -259,6 +276,7 @@ export class CounterOverdriveAudio {
   }
 
   scheduleBossCall(options: BossCallOptions): void {
+    if (this.finalizing) return
     const callAtPerformanceMs = options.callAtPerformanceMs ?? performance.now()
     const token = this.nextBossCallId++
     const schedule = (): void => {
@@ -294,7 +312,7 @@ export class CounterOverdriveAudio {
 
   private scheduleBossCallNow(options: BossCallOptions): void {
     const context = this.context
-    if (context === null) return
+    if (context === null || this.finalizing) return
     this.lastLane = options.lane
     const callAt = this.resolveContextTime(options.callAtPerformanceMs)
     this.playLaneCue(options.lane, callAt, options.heavy ?? false, 'boss')
@@ -305,6 +323,7 @@ export class CounterOverdriveAudio {
   }
 
   playCounterHit(options: CounterHitOptions): void {
+    if (this.finalizing) return
     const at = this.resolveContextTime(options.atPerformanceMs)
     this.lastLane = options.lane
     if (options.grade === 'perfect') {
@@ -341,6 +360,7 @@ export class CounterOverdriveAudio {
     kind: ModuleAudioKind,
     atPerformanceMs?: number,
   ): void {
+    if (this.finalizing) return
     const at = this.resolveContextTime(atPerformanceMs)
     if (kind === 'echo-blade') {
       this.voice({
@@ -408,6 +428,43 @@ export class CounterOverdriveAudio {
     )
   }
 
+  /**
+   * 關閉操作用 transport、撤銷尚未發聲的 Boss call，並在同一首曲子內
+   * 演出一個完整的 4/4 終曲。回傳的 endsAtPerformanceMs 是畫面進入結算
+   * 前必須等待的界線，避免勝負判定看起來像被硬切掉。
+   */
+  playEncounterFinale(
+    outcome: EncounterFinaleOutcome,
+  ): EncounterFinaleSnapshot {
+    const context = this.context
+    const startsAtPerformanceMs = performance.now()
+    const eighth = eighthSecondsForTier(this.tempoTier)
+    const durationSeconds = eighth * 8 + 0.42
+    const durationMs = Math.round(durationSeconds * 1000)
+
+    this.finalizing = true
+    this.stopTransport()
+
+    if (context === null) {
+      return {
+        outcome,
+        startsAtPerformanceMs,
+        endsAtPerformanceMs: startsAtPerformanceMs + durationMs,
+        durationMs,
+      }
+    }
+
+    const at = context.currentTime + 0.025
+    this.restoreMusicalBed(at)
+    this.scheduleFinaleBar(outcome, at, eighth)
+    return {
+      outcome,
+      startsAtPerformanceMs: this.contextTimeToPerformanceTime(at),
+      endsAtPerformanceMs: this.contextTimeToPerformanceTime(at + durationSeconds),
+      durationMs,
+    }
+  }
+
   /** 舊版四方向讀招相容層。 */
   playAttack(direction: Direction, breach: boolean, threat: number): void {
     this.setThreat(threat)
@@ -460,7 +517,7 @@ export class CounterOverdriveAudio {
     limiter.ratio.value = 10
     limiter.attack.value = 0.003
     limiter.release.value = 0.16
-    master.gain.value = this.settings.muted ? 0 : 0.82
+    master.gain.value = this.settings.muted ? 0 : 0.86
     master.connect(limiter)
     limiter.connect(context.destination)
     this.master = master
@@ -504,7 +561,7 @@ export class CounterOverdriveAudio {
     const eighth = eighthSecondsForTier(this.tempoTier)
 
     if (position.slot === 0 || position.slot === 4) {
-      this.kick(at, position.slot === 0 ? 0.076 : 0.061)
+      this.kick(at, position.slot === 0 ? 0.084 : 0.068)
     }
     if (layers.includes('反拍') && (position.slot === 2 || position.slot === 6)) {
       this.snare(at, position.slot === 6 ? 0.043 : 0.049)
@@ -516,10 +573,10 @@ export class CounterOverdriveAudio {
       position.slot === 4 ||
       position.slot === 6
     ) {
-      this.hat(at, position.phase === 'response' ? 0.014 : 0.019)
+      this.hat(at, position.phase === 'response' ? 0.017 : 0.023)
     }
     if (position.slot === 3) {
-      this.openHat(at, 0.024)
+      this.openHat(at, 0.03)
       this.pickup(at, 'center')
     }
 
@@ -531,7 +588,7 @@ export class CounterOverdriveAudio {
           bus: 'harmony',
           frequency: midiFrequency(note),
           duration,
-          gain: 0.012,
+          gain: 0.016,
           at,
           attack: Math.min(0.1, duration * 0.12),
           filterFrequency: 1250,
@@ -550,7 +607,7 @@ export class CounterOverdriveAudio {
         bus: 'harmony',
         frequency: midiFrequency(note),
         duration: eighth * 1.35,
-        gain: 0.027,
+        gain: 0.034,
         at,
         attack: 0.012,
         filterFrequency: 480,
@@ -565,7 +622,7 @@ export class CounterOverdriveAudio {
         bus: 'melody',
         frequency: midiFrequency(note),
         duration: eighth * 0.62,
-        gain: this.tempoTier === 0 ? 0.014 : 0.019,
+        gain: this.tempoTier === 0 ? 0.019 : 0.024,
         at,
         attack: 0.008,
         filterFrequency: 2300,
@@ -578,8 +635,75 @@ export class CounterOverdriveAudio {
       layers.includes('高壓裝飾') &&
       position.phase === 'call'
     ) {
-      this.hat(at + eighth / 2, 0.011, position.slot % 2 === 0 ? -0.2 : 0.2)
+      this.hat(at + eighth / 2, 0.015, position.slot % 2 === 0 ? -0.2 : 0.2)
     }
+  }
+
+  /** 終曲只用既有原創合成聲部，避免將節奏提示誤當成下一組操作目標。 */
+  private scheduleFinaleBar(
+    outcome: EncounterFinaleOutcome,
+    at: number,
+    eighth: number,
+  ): void {
+    const victory = outcome === 'victory'
+    const root = victory ? 65.41 : 55
+    const chord = victory
+      ? [root, root * 1.5, root * 2, root * 2.5]
+      : [root, root * 1.1892, root * 1.4983]
+
+    for (let slot = 0; slot < 8; slot += 1) {
+      const slotAt = at + slot * eighth
+      if (slot === 0 || slot === 4 || (victory && slot === 7)) {
+        this.kick(slotAt, victory ? 0.108 : 0.084)
+      }
+      if (slot === 2 || slot === 6) {
+        this.snare(slotAt, victory ? 0.074 : 0.058)
+      }
+      if (slot !== 7 || victory) {
+        this.hat(slotAt, victory ? 0.032 : 0.022, slot % 2 === 0 ? -0.18 : 0.18)
+      }
+      if (slot === 0 || slot === 4 || slot === 6) {
+        this.voice({
+          bus: 'harmony',
+          frequency: root / (slot === 6 ? 1 : 2),
+          endFrequency: root / 2,
+          duration: eighth * (slot === 6 ? 1.6 : 1.25),
+          gain: victory ? 0.052 : 0.038,
+          at: slotAt,
+          attack: 0.004,
+          filterFrequency: 720,
+          type: 'sawtooth',
+        })
+      }
+    }
+
+    const chordAt = at + eighth * (victory ? 6 : 5)
+    this.chord(
+      chord,
+      eighth * (victory ? 3.5 : 2.7),
+      victory ? 0.095 : 0.068,
+      'harmony',
+      victory ? 'sawtooth' : 'triangle',
+      chordAt,
+    )
+    this.noise({
+      bus: 'effects',
+      duration: victory ? 0.34 : 0.24,
+      gain: victory ? 0.075 : 0.048,
+      at: chordAt,
+      filterFrequency: victory ? 3600 : 1200,
+      filterType: victory ? 'highpass' : 'bandpass',
+    })
+    this.voice({
+      bus: 'effects',
+      frequency: victory ? root * 8 : root * 2,
+      endFrequency: victory ? root * 10 : root * 0.75,
+      duration: victory ? 0.38 : 0.32,
+      gain: victory ? 0.048 : 0.042,
+      at: chordAt,
+      attack: 0.006,
+      type: victory ? 'triangle' : 'sine',
+    })
   }
 
   private playLaneCue(
@@ -793,6 +917,15 @@ export class CounterOverdriveAudio {
       gain.cancelScheduledValues(at)
       gain.setTargetAtTime(amount, at, 0.005)
       gain.setTargetAtTime(1, at + duration, 0.04)
+    }
+  }
+
+  private restoreMusicalBed(at: number): void {
+    for (const stem of ['harmony', 'melody'] as const) {
+      const gain = this.stems[stem]?.gain
+      if (gain === undefined) continue
+      gain.cancelScheduledValues(at)
+      gain.setTargetAtTime(1, at, 0.008)
     }
   }
 

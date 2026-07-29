@@ -66,17 +66,17 @@
       "api": "playModuleResponse",
       "visualFallback": "模組卡連線至觸發拍格"
     },
-    "battle.victory": {
-      "bus": "interface",
-      "cue": "四音上行終止式",
-      "api": "playInterface",
-      "visualFallback": "勝利結算覆蓋層"
+    "battle.finale.victory": {
+      "bus": "music",
+      "cue": "停止新目標後的完整 4/4 勝利終曲：重 kick、snare、低音推進與上行和弦",
+      "api": "playEncounterFinale('victory')",
+      "visualFallback": "停止吐出新音符，保留終曲小節與核心爆發後才顯示結算"
     },
-    "battle.defeat": {
-      "bus": "interface",
-      "cue": "四音下行離線動機",
-      "api": "playInterface",
-      "visualFallback": "失敗結算覆蓋層"
+    "battle.finale.defeat": {
+      "bus": "music",
+      "cue": "停止新目標後的完整 4/4 失敗收束：低頻脈衝、下行終止和弦與短尾韻",
+      "api": "playEncounterFinale('defeat')",
+      "visualFallback": "停止吐出新音符，保留終曲小節後才顯示失敗結算"
     }
   }
 }

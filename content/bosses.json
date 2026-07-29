@@ -12,14 +12,28 @@
       "name": "連打迴路",
       "public_tags": ["同側二連", "八分交替"],
       "pattern_tags": ["repeat", "alternating"],
-      "reward_families": ["alternating", "repeat", "recovery"]
+      "reward_families": ["alternating", "repeat", "recovery"],
+      "phrase_preview": {
+        "baseline": ["left", "rest", "right", "rest"],
+        "rewritten": ["left", "repeat-left", "right", "rest"],
+        "operation": ["←", "←", "→", "無需按鍵"],
+        "central_cue": "同側二連",
+        "promise": "同側二連、八分交替較常出現；不是固定順序。"
+      }
     },
     {
       "id": "charge-route",
       "name": "蓄能迴路",
       "public_tags": ["中央重拍", "標記空拍"],
       "pattern_tags": ["charge", "center"],
-      "reward_families": ["charge", "sequence", "syncopated"]
+      "reward_families": ["charge", "sequence", "syncopated"],
+      "phrase_preview": {
+        "baseline": ["left", "rest", "center", "rest"],
+        "rewritten": ["left", "charge-center", "rest", "center"],
+        "operation": ["←", "Space", "無需按鍵", "Space"],
+        "central_cue": "空拍蓄能",
+        "promise": "中央重拍、標記空拍較常出現；不是固定順序。"
+      }
     }
   ],
   "bosses": [

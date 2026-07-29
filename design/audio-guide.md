@@ -1,4 +1,4 @@
-# 《反擊超載》0.3.0 音樂音效指南
+# 《反擊超載》0.3.1 音樂音效指南
 
 狀態：已核准的 hybrid procedural 垂直切片
 
@@ -26,6 +26,15 @@
 - 速度變更排到下一個 8 小節 section 邊界，不因單次命中瞬間跳速。
 - response 區不播放主旋律或 Boss pickup，保留玩家命中的配器空位。
 
+## 終曲與結果切換
+
+Boss 完整度歸零或玩家失敗後，戰鬥流程必須立刻停止建立新目標，並呼叫 `playEncounterFinale('victory' | 'defeat')`。此 API 會取消尚未播放的 Boss call、關閉 transport、鎖住後續的 call／response 音效，然後演出一個完整 4/4 收束小節與短尾韻。
+
+- 勝利：重 kick、backbeat、推進 bass 與上行終止和弦；最後兩格才落下終止和弦。
+- 失敗：較低的脈衝、下行終止和弦與短尾韻。
+- render 需使用回傳的 `endsAtPerformanceMs`（或 `durationMs`）延後進入獎勵／結算，終曲期間不顯示、也不接受新音符。
+- 這一小節是結束演出，不是可按的節拍；視覺必須清除目標並標記「終曲收束」。
+
 ## 公開 API
 
 `CounterOverdriveAudio` 提供：
@@ -40,6 +49,7 @@
 - `scheduleBossCall({ lane, callAtPerformanceMs, targetAtPerformanceMs, heavy })`：在 call/pickup 相位排程左、右或中央呼叫；pickup 固定由 transport 的 slot 3 統一提供。
 - `playCounterHit({ lane, grade, atPerformanceMs })`：讓玩家完美、一般或失誤成為回擊區配器。
 - `playModuleResponse(kind, atPerformanceMs)`：播放受控的 Rogue 模組答句。
+- `playEncounterFinale(outcome)`：停止目標音訊與 transport，播放一個完整終曲小節；回傳安全切畫面的時間點。
 - `setBusVolume()`／`setMuted()`：控制音樂、效果、介面與全域靜音。
 
 舊版 `startMusic`、`stopMusic`、`setThreat`、`playAttack`、`playResolution` 暫時保留為相容層；0.3.0 render 應改用 lane 與目標時間 API。
@@ -57,7 +67,7 @@
 
 - Sidechain attack 3–5ms，release 90–140ms。
 - rhythm stem 永不進入一般 sidechain。
-- master limiter 防止程序式聲部相加爆音；最終正式素材仍須完成 LUFS 與 true-peak 量測。
+- 0.3.1 將主節拍、bass、pad 與 call 旋律加強，並保持 master limiter 防止程序式聲部相加爆音；最終正式素材仍須完成 LUFS 與 true-peak 量測。
 - 左右 cue 不只依賴聲像：左偏低且厚，右偏高且短，中央具有獨立 sub/metal 輪廓。
 
 ## Rogue 模組答句

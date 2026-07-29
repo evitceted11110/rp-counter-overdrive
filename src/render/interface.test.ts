@@ -98,4 +98,41 @@ describe('0.3.0 單畫面三軌 Rogue 介面', () => {
     expect(visibleTemplate).toContain('class="choice-overlay"')
     expect(styles).toContain('.choice-overlay')
   })
+
+  it('首領崩解後先進入終曲收束，停止目標與輸入，再延遲結算', () => {
+    for (const marker of [
+      'let ending:',
+      'function endEncounter()',
+      "audioDirector.playEncounterFinale(won ? 'victory' : 'defeat')",
+      'scheduledTargetIds = new Set()',
+      'battlePaused = true',
+      'finishEncounterAfterFinale()',
+      'ending === null',
+    ]) {
+      expect(renderSource).toContain(marker)
+    }
+    expect(styles).toContain(".build-stage[data-effect='finale-win']")
+    expect(styles).toContain('.game-shell.is-ending .boss-art')
+  })
+
+  it('在選擇與戰場中央都把構築翻成可見的樂句改寫', () => {
+    for (const marker of [
+      'class="build-stage"',
+      'function renderBuildStage()',
+      'function targetBuildClass(',
+      'function phrasePreview(',
+      'phrase_preview',
+      'central_cue',
+      '樂句改寫',
+    ]) {
+      expect(renderSource).toContain(marker)
+    }
+    for (const marker of [
+      '.track-target.is-rewritten',
+      '.track-target.resonance-ready',
+      '.phrase-preview',
+    ]) {
+      expect(styles).toContain(marker)
+    }
+  })
 })

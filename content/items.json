@@ -12,7 +12,15 @@
         "echo_damage": 2
       },
       "decision_change": "優先追逐左右交替句，第二拍成功後於下一個八分位置產生免費回聲。",
-      "visible_feedback": "第一拍後連線至另一軌，第二拍完美時回聲沿線返回 Boss。"
+      "visible_feedback": "第一拍後連線至另一軌，第二拍完美時回聲沿線返回 Boss。",
+      "phrase_preview": {
+        "baseline": ["left", "rest", "right", "rest"],
+        "rewritten": ["left", "resonant-right", "right", "echo"],
+        "operation": ["←", "→", "→", "無需按鍵"],
+        "central_cue": "交替共振",
+        "payoff": "第二拍完美：尾格免費回聲",
+        "cost": "同側不會形成導線"
+      }
     },
     {
       "id": "downbeat-capacitor",
@@ -26,7 +34,15 @@
         "echo_damage_per_charge": 2
       },
       "decision_change": "接受由休止格公開增加的中央目標以蓄能，並提高中央拍路線的價值；Space 始終只對中央目標生效。",
-      "visible_feedback": "Phrase 預覽先把休止格翻成電容中央目標，命中後將蓄能層移至下一個中央重拍。"
+      "visible_feedback": "Phrase 預覽先把休止格翻成電容中央目標，命中後將蓄能層移至下一個中央重拍。",
+      "phrase_preview": {
+        "baseline": ["left", "rest", "center", "rest"],
+        "rewritten": ["left", "charge-center", "center", "rest"],
+        "operation": ["←", "Space", "Space", "無需按鍵"],
+        "central_cue": "空拍→蓄能",
+        "payoff": "蓄能在下一個中央重拍兌現",
+        "cost": "多一個預先公開的 Space"
+      }
     },
     {
       "id": "steady-flywheel",
@@ -40,7 +56,15 @@
         "vulnerability_damage": 4
       },
       "decision_change": "以下一小節的公開中央壓力換取當下容錯；若下一小節全完美，追加拍轉成 Boss 破綻。",
-      "visible_feedback": "容錯發生後預覽插入中央拍，全完美時翻轉成金色破綻。"
+      "visible_feedback": "容錯發生後預覽插入中央拍，全完美時翻轉成金色破綻。",
+      "phrase_preview": {
+        "baseline": ["left", "rest", "right", "rest"],
+        "rewritten": ["left", "rest", "right", "flywheel-center"],
+        "operation": ["←", "無需按鍵", "→", "Space"],
+        "central_cue": "飛輪追加",
+        "payoff": "下一小節全完美：追加拍變破綻",
+        "cost": "本小節只換得一次容錯"
+      }
     }
   ],
   "passives": [
@@ -54,7 +78,16 @@
         "type": "opposite-lane-window",
         "normal_window_bonus_ms": 40
       },
-      "decision_change": "追逐交替序列以取得下一個相反側的容錯；同側目標會清除待用加寬。"
+      "decision_change": "追逐交替序列以取得下一個相反側的容錯；同側目標會清除待用加寬。",
+      "visible_feedback": "相反側下一格出現青色加寬環；同側格會切斷導線。",
+      "phrase_preview": {
+        "baseline": ["left", "right", "rest", "rest"],
+        "rewritten": ["left", "window-right", "rest", "rest"],
+        "operation": ["←", "→", "無需按鍵", "無需按鍵"],
+        "central_cue": "反側加寬",
+        "payoff": "相反側普通窗口 +40ms",
+        "cost": "同側會清除加寬"
+      }
     },
     {
       "id": "same-side-ratchet",
@@ -68,7 +101,16 @@
         "bonus_overload": 1,
         "bonus_damage": 2
       },
-      "decision_change": "選擇是否承擔第二拍窄窗，以換取雙倍超載與額外打擊。"
+      "decision_change": "選擇是否承擔第二拍窄窗，以換取雙倍超載與額外打擊。",
+      "visible_feedback": "同側第二格顯示紅色窄環與「超載 +1」；成功後由該格爆出打擊 fill。",
+      "phrase_preview": {
+        "baseline": ["left", "left", "rest", "rest"],
+        "rewritten": ["left", "ratchet-left", "rest", "rest"],
+        "operation": ["←", "←", "無需按鍵", "無需按鍵"],
+        "central_cue": "棘輪窄窗",
+        "payoff": "第二拍完美：超載 +1、額外打擊",
+        "cost": "第二拍完美窗口 -20ms"
+      }
     },
     {
       "id": "rest-insurance",
@@ -81,7 +123,16 @@
         "max_stacks": 1,
         "perfect_multiplier_lock_bars": 1
       },
-      "decision_change": "承擔一個預先公開的額外中央目標並犧牲本小節完美倍率，換取一次把失誤改成普通反擊的保險。"
+      "decision_change": "承擔一個預先公開的額外中央目標並犧牲本小節完美倍率，換取一次把失誤改成普通反擊的保險。",
+      "visible_feedback": "標記空格翻成琥珀保險 Space；保險啟動時碎成護盾環。",
+      "phrase_preview": {
+        "baseline": ["left", "rest", "right", "rest"],
+        "rewritten": ["left", "insurance-center", "right", "rest"],
+        "operation": ["←", "Space", "→", "無需按鍵"],
+        "central_cue": "空拍→保險",
+        "payoff": "一次失誤改判普通反擊",
+        "cost": "本小節完美倍率鎖定"
+      }
     },
     {
       "id": "three-phase-sequence",
@@ -93,7 +144,16 @@
         "type": "three-lane-vulnerability",
         "vulnerability_damage": 4
       },
-      "decision_change": "跨拍規劃三軌順序，將中央拍串入進攻而非視為獨立障礙。"
+      "decision_change": "跨拍規劃三軌順序，將中央拍串入進攻而非視為獨立障礙。",
+      "visible_feedback": "左、右、中央三格以三角導線相接，第三格完成時翻為金色破綻。",
+      "phrase_preview": {
+        "baseline": ["left", "right", "center", "rest"],
+        "rewritten": ["sequence-left", "sequence-right", "vulnerability-center", "rest"],
+        "operation": ["←", "→", "Space", "無需按鍵"],
+        "central_cue": "三相閉環",
+        "payoff": "依序全完美：Boss 破綻",
+        "cost": "順序錯誤不會成環"
+      }
     },
     {
       "id": "delay-reed",
@@ -106,7 +166,16 @@
         "max_per_bar": 2,
         "echo_damage": 2
       },
-      "decision_change": "在完美窗內刻意偏晚輸入，以換取下一個反拍回聲。"
+      "decision_change": "在完美窗內刻意偏晚輸入，以換取下一個反拍回聲。",
+      "visible_feedback": "切分格顯示紫色後緣窗；偏晚完美後，下一反拍留下回聲殘影。",
+      "phrase_preview": {
+        "baseline": ["rest", "left", "center", "right"],
+        "rewritten": ["rest", "late-left", "center", "late-echo-right"],
+        "operation": ["無需按鍵", "←（偏晚）", "Space", "→"],
+        "central_cue": "後緣回聲",
+        "payoff": "偏晚完美：下一反拍回聲",
+        "cost": "只在切分格、每小節最多兩次"
+      }
     },
     {
       "id": "circuit-breaker",
@@ -119,7 +188,16 @@
         "max_per_battle": 2,
         "damage_multiplier": 0.75
       },
-      "decision_change": "接受下一小節較低輸出，以熟悉的四分單拍重建節奏；全完美後恢復正常句。"
+      "decision_change": "接受下一小節較低輸出，以熟悉的四分單拍重建節奏；全完美後恢復正常句。",
+      "visible_feedback": "下一小節目標覆上灰色安全導線，並顯示「安全重寫」；全完美後導線退場。",
+      "phrase_preview": {
+        "baseline": ["left", "right", "center", "right"],
+        "rewritten": ["safe-left", "rest", "safe-right", "rest"],
+        "operation": ["←", "無需按鍵", "→", "無需按鍵"],
+        "central_cue": "安全重寫",
+        "payoff": "下一小節重建拍感；全完美後恢復",
+        "cost": "該小節輸出 75%"
+      }
     }
   ]
 }

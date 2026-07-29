@@ -52,6 +52,17 @@ type RawRoute = {
   public_tags: string[]
   pattern_tags: string[]
   reward_families: string[]
+  phrase_preview?: PhrasePreview
+}
+
+type PhrasePreview = {
+  baseline: string[]
+  rewritten: string[]
+  operation: string[]
+  central_cue: string
+  payoff?: string
+  cost?: string
+  promise?: string
 }
 
 type RawItem = {
@@ -63,6 +74,7 @@ type RawItem = {
   visible_feedback?: string
   compatible_tags: string[]
   effect: Record<string, string | number>
+  phrase_preview?: PhrasePreview
 }
 
 type RawPattern = {
@@ -149,7 +161,7 @@ root.innerHTML = `
   <section class="game-shell" tabindex="-1" aria-label="反擊超載遊戲">
     <header class="top-hud">
       <div class="brand-block">
-        <span class="eyebrow">三軌節奏隨機冒險 0.3.0</span>
+        <span class="eyebrow">三軌節奏隨機冒險 0.3.1</span>
         <strong>反擊超載</strong>
       </div>
       <div class="run-progress" aria-label="本局進度">
@@ -191,6 +203,7 @@ root.innerHTML = `
         />
         <div class="boss-aura"></div>
         <div class="phrase-label">選擇起始核心後進入第一戰</div>
+        <div class="build-stage" aria-live="polite" aria-label="構築如何改寫目前樂句"></div>
         <div class="track-field" aria-label="左、中央、右三軌">
           <div class="lane lane-left"><span>左軌</span><kbd>←</kbd></div>
           <div class="lane lane-center locked"><span>中央重拍</span><kbd>空白</kbd></div>
@@ -273,6 +286,7 @@ const comboValue = query<HTMLElement>('.combo-value')
 const windowValue = query<HTMLElement>('.window-value')
 const bpmValue = query<HTMLElement>('.bpm-value')
 const phraseLabel = query<HTMLElement>('.phrase-label')
+const buildStage = query<HTMLElement>('.build-stage')
 const targetLayer = query<HTMLElement>('.target-layer')
 const impactText = query<HTMLElement>('.impact-text')
 const eventDetail = query<HTMLElement>('.event-detail')
@@ -300,6 +314,8 @@ let scheduledTargetIds = new Set<string>()
 let impactUntil = 0
 let lastEventIdentity = ''
 let battlePaused = false
+let ending: { won: boolean; finishAt: number } | null = null
+let endingTimeoutId: number | null = null
 
 function currentEncounter(): EncounterDefinition {
   const encounter = encounters.find((item) => item.encounter === run.encounter)
@@ -361,6 +377,92 @@ function renderBuild(): void {
   }
 }
 
+function activeBuildItem(): RawItem | undefined {
+  const triggered = battle?.lastEvent?.triggered.at(-1)
+  if (triggered !== undefined) return allItems.get(triggered)
+  const current = battle?.targets[battle.cursor]
+  const sourceId =
+    current?.source === 'capacitor' ||
+    current?.source === 'capacitor-insurance'
+      ? 'downbeat-capacitor'
+      : current?.source === 'flywheel'
+        ? 'steady-flywheel'
+        : current?.source === 'breaker'
+          ? 'phrase-breaker'
+          : undefined
+  if (sourceId !== undefined) return allItems.get(sourceId)
+  return selectedEffects()
+    .map((effect) => allItems.get(effect.sourceId))
+    .find((item): item is RawItem => item !== undefined)
+}
+
+function buildRewriteText(): string {
+  const current = battle?.targets[battle.cursor]
+  if (current?.source === 'capacitor' || current?.source === 'capacitor-insurance') {
+    return '標記空拍已具象化為中央蓄電拍；命中後會在下一個中央拍放電。'
+  }
+  if (current?.source === 'insurance') {
+    return '原本的空拍已變成保險拍；這一拍把容錯直接寫進節奏軌。'
+  }
+  if (current?.source === 'flywheel') {
+    return '飛輪把剛才的失誤寫進下一小節，形成可看見的中央壓力拍。'
+  }
+  if (current?.source === 'breaker') {
+    return '斷路器已把首領的下一小節替換成安全樂句。'
+  }
+  const triggered = battle?.lastEvent?.triggered.at(-1)
+  if (triggered !== undefined) return '剛才的命中已觸發構築；下一拍會依這條規則繼續演化。'
+  return '構築不是外側加成：它會在三軌內改變目標、窗口或下一小節。'
+}
+
+function renderBuildStage(): void {
+  if (ending !== null) {
+    buildStage.dataset.effect = ending.won ? 'finale-win' : 'finale-loss'
+    buildStage.innerHTML = ending.won
+      ? '<span>終曲收束・後續音符已停止</span><strong>核心已崩解</strong><small>讓最後一小節完成，準備進入下一個抉擇</small>'
+      : '<span>終曲收束・後續音符已停止</span><strong>核心離線</strong><small>讓最後一小節落下，準備結算本局</small>'
+    return
+  }
+  if (battle === null) {
+    buildStage.dataset.effect = 'idle'
+    buildStage.innerHTML = '<span>構築會在這裡改寫樂句</span><strong>選擇核心後啟動</strong><small>不是額外按鍵，而是直接改變三軌上的節奏規則</small>'
+    return
+  }
+  const item = activeBuildItem()
+  buildStage.dataset.effect = item?.id ?? 'unbound'
+  buildStage.innerHTML = item === undefined
+    ? '<span>樂句改寫器</span><strong>等待構築資料</strong><small>下一個模組會直接在三軌上留下痕跡</small>'
+    : `<span>樂句改寫・${item.family}</span><strong>${item.name}</strong><small>${buildRewriteText()}</small>`
+}
+
+function targetBuildClass(target: BattleRuntimeState['targets'][number]): string {
+  const effectIds = new Set(selectedEffects().map((effect) => effect.sourceId))
+  const previous = battle?.previousPerfectLane
+  const resonanceReady =
+    effectIds.has('cross-resonance') &&
+    previous !== null &&
+    previous !== undefined &&
+    target.lane !== 'center' &&
+    target.lane !== previous
+  const capacitorArmed =
+    effectIds.has('downbeat-capacitor') &&
+    (target.source === 'capacitor' ||
+      target.source === 'capacitor-insurance' ||
+      (target.lane === 'center' && (battle?.capacitorCharges ?? 0) > 0))
+  const sequenceReady =
+    effectIds.has('three-phase-sequence') &&
+    target.lane === 'center' &&
+    (battle?.recentPerfect.length ?? 0) === 2
+  return [
+    target.source !== 'pattern' ? 'is-rewritten' : '',
+    resonanceReady ? 'resonance-ready' : '',
+    capacitorArmed ? 'capacitor-armed' : '',
+    sequenceReady ? 'sequence-ready' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
+
 function updateProgress(): void {
   const nodes = [...root.querySelectorAll<HTMLElement>('.run-node')]
   const activeIndex =
@@ -378,10 +480,42 @@ function itemCard(choice: RunChoice, kind: 'core' | 'passive'): string {
     <button class="choice-card" type="button" data-kind="${kind}" data-id="${item.id}">
       <span>${kind === 'core' ? '起始核心' : '被動模組'}・${item.family}</span>
       <strong>${item.name}</strong>
+      ${phrasePreview(item.phrase_preview)}
       <b>${item.trigger}</b>
       <small>${item.decision_change}</small>
     </button>
   `
+}
+
+function phraseSlotLabel(slot: string): string {
+  if (slot.includes('left')) return '←'
+  if (slot.includes('right')) return '→'
+  if (slot.includes('center')) return '空白'
+  if (slot.includes('echo')) return '回聲'
+  if (slot.includes('rest')) return '—'
+  return '◆'
+}
+
+function operationLabel(operation: string): string {
+  return operation.replaceAll('Space', '空白')
+}
+
+function phrasePreview(preview: PhrasePreview | undefined): string {
+  if (preview === undefined) return ''
+  const slots = preview.rewritten
+    .map(
+      (slot, index) =>
+        `<i class="phrase-slot ${slot.includes('rest') ? 'rest' : 'active'}"><b>${phraseSlotLabel(
+          preview.baseline[index] ?? 'rest',
+        )}</b><em>→</em><strong>${phraseSlotLabel(slot)}</strong><small>${operationLabel(
+          preview.operation[index] ?? '無需按鍵',
+        )}</small></i>`,
+    )
+    .join('')
+  const consequence = preview.payoff ?? preview.promise ?? ''
+  return `<div class="phrase-preview" aria-label="樂句改寫預覽：${preview.central_cue}"><span>${preview.central_cue}</span><div>${slots}</div><small>${consequence}${
+    preview.cost === undefined ? '' : `・代價：${preview.cost}`
+  }</small></div>`
 }
 
 function showChoice(): void {
@@ -391,7 +525,7 @@ function showChoice(): void {
   renderBuild()
   if (run.phase === 'choose-core') {
     choicePanel.innerHTML = `
-      <span class="choice-kicker">0.3.0 隨機冒險</span>
+      <span class="choice-kicker">0.3.1 隨機冒險</span>
       <h1>選擇本局的反擊規則</h1>
       <p>三個核心都不增加按鍵；它們會被動改寫你追逐的節奏。</p>
       <div class="choice-grid">${run.coreChoices.map((choice) => itemCard(choice, 'core')).join('')}</div>
@@ -414,6 +548,7 @@ function showChoice(): void {
             (route) => `
               <button class="choice-card route-card" type="button" data-kind="route" data-id="${route.id}">
                 <span>下一戰路線</span><strong>${route.name}</strong>
+                ${phrasePreview(allRoutes.get(route.id)?.phrase_preview)}
                 <b>${route.publicTags.join('・')}</b>
                 <small>路線會改變可抽到的樂句與下一次草稿傾向。</small>
               </button>
@@ -459,6 +594,11 @@ async function startEncounter(): Promise<void> {
   transport = new RhythmTransport(timeline, { nowMs: () => performance.now() })
   scheduledTargetIds = new Set()
   battlePaused = false
+  ending = null
+  if (endingTimeoutId !== null) {
+    window.clearTimeout(endingTimeoutId)
+    endingTimeoutId = null
+  }
   audioDirector.stopTransport()
   audioDirector.startTransport({
     tempoTier: (encounter.encounter - 1) as 0 | 1 | 2,
@@ -548,14 +688,14 @@ function rescheduleRemainingTargetsAfterPause(): void {
 }
 
 function pauseBattleForInterruption(): void {
-  if (battle === null || battlePaused) return
+  if (battle === null || battlePaused || ending !== null) return
   battlePaused = true
   clearBattleTimeout()
   audioDirector.stopTransport()
 }
 
 function resumeBattleAfterInterruption(): void {
-  if (battle === null || !battlePaused) return
+  if (battle === null || !battlePaused || ending !== null) return
   rescheduleRemainingTargetsAfterPause()
   const startAtPerformanceMs = performance.now() + 80
   timeline = new BeatTimeline({
@@ -581,7 +721,7 @@ function clearBattleTimeout(): void {
 
 function scheduleCurrentTimeout(): void {
   clearBattleTimeout()
-  if (battle === null) return
+  if (battle === null || ending !== null) return
   const target = battle.targets[battle.cursor]
   if (target === undefined) {
     if (battle.bossIntegrity > 0) {
@@ -681,7 +821,7 @@ function afterResolution(targetAtPerformanceMs?: number): void {
 }
 
 function handleAction(action: CombatAction, inputPerformanceMs: number): void {
-  if (battle === null || transport === null || battlePaused) return
+  if (battle === null || transport === null || battlePaused || ending !== null) return
   const target = battle.targets[battle.cursor]
   if (target === undefined) return
   const previousCursor = battle.cursor
@@ -707,27 +847,49 @@ function handleAction(action: CombatAction, inputPerformanceMs: number): void {
 }
 
 function endEncounter(): void {
-  if (battle === null) return
+  if (battle === null || ending !== null) return
   clearBattleTimeout()
-  audioDirector.stopTransport()
-  if (battle.playerIntegrity <= 0) {
-    run = failRun(run)
-  } else {
+  scheduledTargetIds = new Set()
+  battlePaused = true
+  const won = battle.playerIntegrity > 0
+  const finale = audioDirector.playEncounterFinale(won ? 'victory' : 'defeat')
+  ending = {
+    won,
+    finishAt: performance.now() + finale.durationMs,
+  }
+  endingTimeoutId = window.setTimeout(() => {
+    finishEncounterAfterFinale()
+  }, finale.durationMs)
+}
+
+function finishEncounterAfterFinale(): void {
+  if (battle === null || ending === null) return
+  const won = ending.won
+  endingTimeoutId = null
+  if (won) {
     run = completeEncounter(run, battle.playerIntegrity, runCatalog)
+  } else {
+    run = failRun(run)
   }
   battle = null
   timeline = null
   transport = null
   battlePaused = false
+  ending = null
   showChoice()
 }
 
 function restartRun(): void {
+  if (endingTimeoutId !== null) {
+    window.clearTimeout(endingTimeoutId)
+    endingTimeoutId = null
+  }
   runNumber += 1
   run = createRunState(`COUNTER-OVERDRIVE-${runNumber}`, runCatalog)
   battle = null
   timeline = null
   transport = null
+  ending = null
   seedLabel.textContent = `本局種子：${run.seed}`
   bossName.textContent = '等待選擇核心'
   bossBar.style.width = '0%'
@@ -763,9 +925,13 @@ choicePanel.addEventListener('click', (event) => {
 })
 
 window.addEventListener('keydown', (event) => {
-  routeCombatKeyboardEvent(event, battle !== null && choiceOverlay.hidden, (action) => {
+  routeCombatKeyboardEvent(
+    event,
+    battle !== null && choiceOverlay.hidden && ending === null,
+    (action) => {
     handleAction(action, audioDirector.calibratedInputTime(event.timeStamp))
-  })
+    },
+  )
 })
 
 audioDirector.setInterruptionHandler(pauseBattleForInterruption)
@@ -827,8 +993,10 @@ function render(now: number): void {
   overloadValue.textContent = String(battle?.overload ?? 0)
   comboValue.textContent = String(battle?.combo ?? 0)
   renderBuild()
+  renderBuildStage()
+  shell.classList.toggle('is-ending', ending !== null)
 
-  if (battle !== null && transport !== null) {
+  if (battle !== null && transport !== null && ending === null) {
     const current = battle.targets[battle.cursor]
     const beat = transport.position.beat
     bossBar.style.width = `${(battle.bossIntegrity / battle.maxBossIntegrity) * 100}%`
@@ -852,9 +1020,9 @@ function render(now: number): void {
         const top = 82 - (delta / 7) * 76
         const label =
           target.lane === 'left' ? '←' : target.lane === 'right' ? '→' : '空白'
-        return `<div class="track-target ${target.lane} ${target.source} ${
-          index === 0 ? 'current' : ''
-        }" style="top:${top}%"><b>${label}</b><small>${target.patternName}</small></div>`
+        return `<div class="track-target ${target.lane} ${target.source} ${targetBuildClass(
+          target,
+        )} ${index === 0 ? 'current' : ''}" style="top:${top}%"><b>${label}</b><small>${target.patternName}</small></div>`
       })
       .join('')
   } else {
