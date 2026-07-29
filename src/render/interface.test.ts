@@ -1,0 +1,46 @@
+import { readFileSync } from 'node:fs'
+import { describe, expect, it } from 'vitest'
+
+const renderSource = readFileSync(
+  new URL('./main.ts', import.meta.url),
+  'utf8',
+)
+const styles = readFileSync(new URL('./styles.css', import.meta.url), 'utf8')
+const visibleTemplate =
+  renderSource.match(/root\.innerHTML = `([\s\S]*?)`\n\nconst query/)?.[1] ?? ''
+
+describe('單畫面繁體中文介面', () => {
+  it('鎖定 viewport 並禁止頁面滾動', () => {
+    expect(styles).toContain('html,\nbody,\n#app')
+    expect(styles).toContain('overflow: hidden;')
+    expect(styles).toContain('height: 100dvh;')
+    expect(styles).toContain('min-width: 960px;')
+  })
+
+  it('主要操作、狀態與結算均使用繁體中文', () => {
+    for (const label of [
+      '威脅階級',
+      '完整度',
+      '相位',
+      '反擊窗口',
+      '制動核心',
+      '方向反擊',
+      '重新挑戰',
+    ]) {
+      expect(visibleTemplate).toContain(label)
+    }
+  })
+
+  it('不直接顯示內部英文遊戲術語', () => {
+    for (const banned of [
+      '>Threat<',
+      '>Perfect<',
+      '>Phase<',
+      '>Boss HP<',
+      '>Restart<',
+      '>Turn<',
+    ]) {
+      expect(visibleTemplate).not.toContain(banned)
+    }
+  })
+})
