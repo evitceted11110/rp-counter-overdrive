@@ -91,9 +91,11 @@ describe('0.3.0 單畫面三軌 Rogue 介面', () => {
     expect(renderSource).toContain('scheduleUpcomingTargets()')
   })
 
-  it('頁面或 AudioContext 中斷時暫停，不會把離開期間算成 miss', () => {
+  it('頁面或 AudioContext 中斷時暫停，回來後重建 timeline；受限時提供一鍵續播', () => {
     for (const marker of [
       "window.addEventListener('blur', pauseBattleForInterruption)",
+      "window.addEventListener('focus', () => void resumeBattleAfterInterruption())",
+      "window.addEventListener('pointerdown'",
       "document.addEventListener('visibilitychange'",
       'pauseBattleForInterruption',
       'resumeBattleAfterInterruption',
@@ -101,6 +103,10 @@ describe('0.3.0 單畫面三軌 Rogue 介面', () => {
       'audioDirector.stopTransport()',
       'rescheduleRemainingTargetsAfterPause',
       'audioDirector.setInterruptionHandler',
+      'const audioReady = await audioDirector.unlock()',
+      'interruption-overlay',
+      'resume-battle-button',
+      "window.addEventListener('pageshow'",
     ]) {
       expect(renderSource).toContain(marker)
     }

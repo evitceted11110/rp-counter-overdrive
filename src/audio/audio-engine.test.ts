@@ -32,6 +32,16 @@ describe('Boss call 相位音訊契約', () => {
     expect(source).toContain('Web Audio keeps this sample-accurate')
   })
 
+  it('背景切換後可重建或恢復 AudioContext，未播放的 target accent 可取消', () => {
+    expect(source).toContain("if (this.context?.state === 'closed')")
+    expect(source).toContain('async unlock(): Promise<boolean>')
+    expect(source).toContain('await context.resume()')
+    expect(source).toContain('return isContextRunning(context)')
+    expect(source).toContain('this.cancelTargetAccentsFrom(Number.NEGATIVE_INFINITY)')
+    expect(source).toContain('cancelTargetAccentsFrom(targetPerformanceMs: number)')
+    expect(source).toContain('this.pendingTargetAccents.delete(token)')
+  })
+
   it('終曲先關閉 transport 與未發聲 Boss call，並鎖住後續目標音效', () => {
     expect(source).toContain("export type EncounterFinaleOutcome = 'victory' | 'defeat'")
     expect(source).toContain('playEncounterFinale(')
