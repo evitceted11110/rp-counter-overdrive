@@ -171,7 +171,7 @@ root.innerHTML = `
   <section class="game-shell" tabindex="-1" aria-label="反擊超載遊戲">
     <header class="top-hud">
       <div class="brand-block">
-        <span class="eyebrow">三軌節奏隨機冒險 0.4.3</span>
+        <span class="eyebrow">三軌節奏隨機冒險 0.4.4</span>
         <strong>反擊超載</strong>
       </div>
       <div class="run-progress" aria-label="本局進度">
@@ -286,6 +286,14 @@ root.innerHTML = `
     <div class="choice-overlay">
       <section class="choice-panel"></section>
     </div>
+    <div class="interruption-overlay" hidden role="status" aria-live="assertive">
+      <section class="interruption-panel">
+        <span>節拍已暫停</span>
+        <strong>回到同一段樂句</strong>
+        <p>不會漏算離開期間的音符；按下後以四拍倒數安全續播。</p>
+        <button class="resume-battle-button" type="button">繼續演奏</button>
+      </section>
+    </div>
   </section>
 `
 
@@ -298,6 +306,8 @@ function query<T extends Element>(selector: string): T {
 const shell = query<HTMLElement>('.game-shell')
 const choiceOverlay = query<HTMLElement>('.choice-overlay')
 const choicePanel = query<HTMLElement>('.choice-panel')
+const interruptionOverlay = query<HTMLElement>('.interruption-overlay')
+const resumeBattleButton = query<HTMLButtonElement>('.resume-battle-button')
 const bossName = query<HTMLElement>('.boss-name')
 const bossBar = query<HTMLElement>('.boss-bar i')
 const bossValue = query<HTMLElement>('.boss-value')
@@ -339,6 +349,7 @@ let targetVisualSlots = new Map<string, TargetVisualLayout>()
 let impactFeedbackSerial = 0
 let impactFeedbackTimers = new Set<number>()
 let battlePaused = false
+let resumeInFlight = false
 let ending: { won: boolean; finishAt: number } | null = null
 let endingTimeoutId: number | null = null
 let autoClickEnabled = false
@@ -692,7 +703,7 @@ function showChoice(): void {
   renderBuild()
   if (run.phase === 'choose-core') {
     choicePanel.innerHTML = `
-      <span class="choice-kicker">0.4.3 隨機冒險</span>
+      <span class="choice-kicker">0.4.4 隨機冒險</span>
       <h1>選擇本局的反擊規則</h1>
       <p>三個核心都不增加按鍵；它們會被動改寫你追逐的節奏。</p>
       <div class="choice-grid">${run.coreChoices.map((choice) => itemCard(choice, 'core')).join('')}</div>
@@ -765,6 +776,8 @@ async function startEncounter(): Promise<void> {
   targetVisualSlots = new Map()
   stableTargetVisualLayouts(battle.targets)
   battlePaused = false
+  resumeInFlight = false
+  interruptionOverlay.hidden = true
   ending = null
   if (endingTimeoutId !== null) {
     window.clearTimeout(endingTimeoutId)
@@ -844,56 +857,76 @@ function moduleResponseAt(targetAtPerformanceMs?: number): number {
     : nextEighthAtPerformanceMs()
 }
 
-function rescheduleRemainingTargetsAfterPause(): void {
-  if (battle === null) return
+function rescheduleRemainingTargetsAfterPause(): number | null {
+  if (battle === null) return null
   const state = battle
   const current = state.targets[state.cursor]
-  if (current === undefined) return
+  if (current === undefined) return null
   const currentBar = Math.floor(current.targetBeat / 4)
-  battle = {
-    ...state,
-    // 保留已結算 target 的歷史順序；尚未結算者以第一個剩餘小節
-    // 作為新的第二小節。這會先給四拍倒數，且所有目標仍在 response
-    // slots，不會因 tab 回來後追趕過去的 timeout。
-    targets: state.targets.map((target, index) =>
-      index < state.cursor
-        ? target
-        : {
-            ...target,
-            targetBeat:
-              (1 + Math.floor(target.targetBeat / 4) - currentBar) * 4 +
-              (target.targetBeat % 4),
-          },
-    ),
-  }
+  // 固定譜面的 targetBeat 是不可變契約。續播只重建 shared timeline：
+  // 把第一個剩餘 response 小節映射到四拍倒數之後，已演奏與未演奏
+  // target 的 id／鍵位／原始拍點都不變。
+  const beatMs = 60_000 / state.encounter.bpm
+  const startAtPerformanceMs = performance.now() + 250
+  const resumeBarOffset = currentBar * 4 - 4
+  timeline = new BeatTimeline({
+    bpm: state.encounter.bpm,
+    startTimeMs: startAtPerformanceMs - resumeBarOffset * beatMs,
+  })
+  transport = new RhythmTransport(timeline, { nowMs: () => performance.now() })
+  return startAtPerformanceMs
 }
 
 function pauseBattleForInterruption(): void {
   stopAutoClick()
   if (battle === null || battlePaused || ending !== null) return
   battlePaused = true
+  interruptionOverlay.hidden = false
   updateAutoClickControl()
   clearBattleTimeout()
   audioDirector.stopTransport()
 }
 
-function resumeBattleAfterInterruption(): void {
-  if (battle === null || !battlePaused || ending !== null) return
-  rescheduleRemainingTargetsAfterPause()
-  const startAtPerformanceMs = performance.now() + 80
-  timeline = new BeatTimeline({
-    bpm: battle.encounter.bpm,
-    startTimeMs: startAtPerformanceMs,
-  })
-  transport = new RhythmTransport(timeline, { nowMs: () => performance.now() })
+async function resumeBattleAfterInterruption(): Promise<void> {
+  if (
+    battle === null ||
+    !battlePaused ||
+    ending !== null ||
+    document.hidden ||
+    resumeInFlight
+  ) {
+    return
+  }
+  resumeInFlight = true
+  const audioReady = await audioDirector.unlock()
+  if (
+    !audioReady ||
+    battle === null ||
+    !battlePaused ||
+    ending !== null ||
+    document.hidden
+  ) {
+    interruptionOverlay.hidden = false
+    resumeInFlight = false
+    return
+  }
+  const startAtPerformanceMs = rescheduleRemainingTargetsAfterPause()
+  if (startAtPerformanceMs === null || timeline === null || transport === null) {
+    interruptionOverlay.hidden = false
+    resumeInFlight = false
+    return
+  }
   scheduledTargetIds = new Set()
   battlePaused = false
+  interruptionOverlay.hidden = true
   audioDirector.startTransport({
     tempoTier: (battle.encounter.encounter - 1) as 0 | 1 | 2,
     startAtPerformanceMs,
   })
   scheduleUpcomingTargets()
   scheduleCurrentTimeout()
+  updateAutoClickControl()
+  resumeInFlight = false
 }
 
 function clearBattleTimeout(): void {
@@ -1180,6 +1213,7 @@ function finishEncounterAfterFinale(): void {
   timeline = null
   transport = null
   battlePaused = false
+  interruptionOverlay.hidden = true
   ending = null
   clearImpactFeedbacks()
   showChoice()
@@ -1198,6 +1232,8 @@ function restartRun(): void {
   timeline = null
   transport = null
   ending = null
+  resumeInFlight = false
+  interruptionOverlay.hidden = true
   seedLabel.textContent = `本局種子：${run.seed}`
   bossName.textContent = '等待選擇核心'
   bossBar.style.width = '0%'
@@ -1247,9 +1283,18 @@ window.addEventListener('keydown', (event) => {
 
 audioDirector.setInterruptionHandler(pauseBattleForInterruption)
 window.addEventListener('blur', pauseBattleForInterruption)
+window.addEventListener('focus', () => void resumeBattleAfterInterruption())
+window.addEventListener('pointerdown', () => {
+  if (battlePaused) void resumeBattleAfterInterruption()
+})
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) pauseBattleForInterruption()
-  else void audioDirector.unlock().then(resumeBattleAfterInterruption)
+  else void resumeBattleAfterInterruption()
+})
+window.addEventListener('pageshow', () => void resumeBattleAfterInterruption())
+
+resumeBattleButton.addEventListener('click', () => {
+  void resumeBattleAfterInterruption()
 })
 
 query<HTMLButtonElement>('.left-button').addEventListener('click', () => {

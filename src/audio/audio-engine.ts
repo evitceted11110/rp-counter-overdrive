@@ -67,6 +67,11 @@ type PendingBossCall = {
   targetAtPerformanceMs: number | undefined
 }
 
+type PendingTargetAccent = {
+  timeoutId: number
+  targetAtPerformanceMs: number
+}
+
 export type CounterHitOptions = {
   lane: AudioLane
   grade: 'perfect' | 'normal' | 'miss'
@@ -143,6 +148,10 @@ function decibelsToGain(decibels: number): number {
   return 10 ** (decibels / 20)
 }
 
+function isContextRunning(context: AudioContext): boolean {
+  return context.state === 'running'
+}
+
 export class CounterOverdriveAudio {
   private context: AudioContext | null = null
   private master: GainNode | null = null
@@ -160,6 +169,8 @@ export class CounterOverdriveAudio {
   private interruptionHandler: (() => void) | null = null
   private pendingBossCalls = new Map<number, PendingBossCall>()
   private nextBossCallId = 0
+  private pendingTargetAccents = new Map<number, PendingTargetAccent>()
+  private nextTargetAccentId = 0
   /**
    * 終曲開始後，戰鬥目標的 call／response 都必須靜音；只有 finale
    * 自己排出的收束小節可以繼續播放。
@@ -174,16 +185,39 @@ export class CounterOverdriveAudio {
     return this.settings
   }
 
-  async unlock(): Promise<void> {
+  async unlock(): Promise<boolean> {
+    // A closed context cannot be resumed. It is rare, but browsers may tear
+    // one down while a page is backgrounded; recreate it instead of leaving
+    // the run in a permanently silent state.
+    if (this.context?.state === 'closed') {
+      this.context = null
+      this.master = null
+      this.buses = {}
+      this.stems = {}
+      this.noiseBuffer = null
+    }
     if (this.context === null) {
-      this.context = new AudioContext()
+      const context = new AudioContext()
+      this.context = context
       this.createMixGraph()
       this.noiseBuffer = this.createNoiseBuffer()
-      this.context.addEventListener('statechange', () => {
-        if (this.context?.state !== 'running') this.interruptionHandler?.()
+      context.addEventListener('statechange', () => {
+        if (this.context === context && context.state !== 'running') {
+          this.interruptionHandler?.()
+        }
       })
     }
-    if (this.context.state === 'suspended') await this.context.resume()
+    const context = this.context
+    if (isContextRunning(context)) return true
+    try {
+      await context.resume()
+    } catch {
+      // Autoplay policy can still reject a visibility-triggered resume. The
+      // render layer turns this false return into an explicit one-click
+      // continuation control instead of silently deadlocking the battle.
+      return false
+    }
+    return isContextRunning(context)
   }
 
   startTransport(options: TransportStartOptions = {}): AudioTransportSnapshot {
@@ -214,6 +248,7 @@ export class CounterOverdriveAudio {
 
   stopTransport(): void {
     this.cancelBossCallsFrom(Number.NEGATIVE_INFINITY)
+    this.cancelTargetAccentsFrom(Number.NEGATIVE_INFINITY)
     if (this.schedulerId === null) return
     window.clearInterval(this.schedulerId)
     this.schedulerId = null
@@ -314,6 +349,36 @@ export class CounterOverdriveAudio {
    * Web Audio keeps this sample-accurate even when the JS scheduler wakes late.
    */
   scheduleTargetAccent(options: TargetAccentOptions): void {
+    if (this.finalizing || this.context === null) return
+    const token = this.nextTargetAccentId++
+    const schedule = (): void => {
+      this.pendingTargetAccents.delete(token)
+      this.scheduleTargetAccentNow(options)
+    }
+    // Keep the actual oscillator schedule on the AudioContext clock, but do
+    // not create it while a hidden tab may later rebuild its transport. This
+    // makes every not-yet-heard accent cancellable on interruption.
+    const delay = options.targetAtPerformanceMs - performance.now() - 90
+    if (delay <= 4) {
+      schedule()
+      return
+    }
+    const timeoutId = window.setTimeout(schedule, delay)
+    this.pendingTargetAccents.set(token, {
+      timeoutId,
+      targetAtPerformanceMs: options.targetAtPerformanceMs,
+    })
+  }
+
+  cancelTargetAccentsFrom(targetPerformanceMs: number): void {
+    for (const [token, pending] of this.pendingTargetAccents) {
+      if (pending.targetAtPerformanceMs < targetPerformanceMs) continue
+      window.clearTimeout(pending.timeoutId)
+      this.pendingTargetAccents.delete(token)
+    }
+  }
+
+  private scheduleTargetAccentNow(options: TargetAccentOptions): void {
     if (this.finalizing || this.context === null) return
     const at = this.resolveContextTime(options.targetAtPerformanceMs)
     const heavy = options.heavy ?? false
