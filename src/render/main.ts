@@ -171,7 +171,7 @@ root.innerHTML = `
   <section class="game-shell" tabindex="-1" aria-label="反擊超載遊戲">
     <header class="top-hud">
       <div class="brand-block">
-        <span class="eyebrow">三軌節奏隨機冒險 0.4.2</span>
+        <span class="eyebrow">三軌節奏隨機冒險 0.4.3</span>
         <strong>反擊超載</strong>
       </div>
       <div class="run-progress" aria-label="本局進度">
@@ -692,7 +692,7 @@ function showChoice(): void {
   renderBuild()
   if (run.phase === 'choose-core') {
     choicePanel.innerHTML = `
-      <span class="choice-kicker">0.4.2 隨機冒險</span>
+      <span class="choice-kicker">0.4.3 隨機冒險</span>
       <h1>選擇本局的反擊規則</h1>
       <p>三個核心都不增加按鍵；它們會被動改寫你追逐的節奏。</p>
       <div class="choice-grid">${run.coreChoices.map((choice) => itemCard(choice, 'core')).join('')}</div>
@@ -1355,8 +1355,9 @@ function render(now: number): void {
           queueShiftPx: 0,
         }
         const delta = target.targetBeat - beat
-        // 方塊外層以 translateY(-50%) 定位；因此 delta = 0 時，方塊
-        // 的幾何中心會精確落在 --judgement-line，而非讓邊緣去碰判定線。
+        // CSS 以固定 -15px（方塊高度 30px 的一半）定位外層；下方說明
+        // 文字不參與置中。因此 delta = 0 時，方塊幾何中心精確落在
+        // --judgement-line，而非讓整組方塊＋文字去碰判定線。
         const top = `calc(var(--judgement-line) - ${(delta / 7) * 76}%)`
         const approachClass =
           index === 0 && delta <= 1.1 && delta > 0.13

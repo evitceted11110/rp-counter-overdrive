@@ -493,7 +493,9 @@ kbd {
   width: 33.333%;
   place-items: center;
   color: var(--cyan);
-  transform: translate(var(--queue-shift, 0px), -50%);
+  /* b 固定高 30px；只上移它的一半。small 是方塊下方的說明，絕不可
+     參與判定座標的置中，否則方塊下緣會被誤對到反擊線。 */
+  transform: translate(var(--queue-shift, 0px), -15px);
   transition: top 16ms linear;
 }
 
@@ -640,6 +642,9 @@ kbd {
   right: 0;
   left: 0;
   z-index: 5;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: 2px;
   height: 2px;
   background: white;
   box-shadow:
@@ -648,11 +653,13 @@ kbd {
 }
 
 .hit-anchor {
-  position: absolute;
-  top: 50%;
+  position: relative;
+  justify-self: center;
+  align-self: center;
   width: 58px;
   height: 38px;
-  transform: translate(-50%, -50%);
+  /* grid cell 與反擊線同高；align-self: center 已讓準星中心落在線中心。 */
+  transform: none;
   border-top: 1px solid rgb(223 250 255 / 72%);
   border-bottom: 1px solid rgb(223 250 255 / 72%);
   background: linear-gradient(90deg, transparent, rgb(101 236 255 / 16%), transparent);
@@ -683,12 +690,7 @@ kbd {
   box-shadow: 0 0 12px var(--cyan);
 }
 
-.hit-anchor-left {
-  left: 16.666%;
-}
-
 .hit-anchor-center {
-  left: 50%;
   border-color: rgb(255 224 168 / 78%);
   background: linear-gradient(90deg, transparent, rgb(255 189 89 / 18%), transparent);
 }
@@ -701,10 +703,6 @@ kbd {
 .hit-anchor-center::after {
   background: linear-gradient(transparent, #fff0b2 28%, #fff0b2 72%, transparent);
   box-shadow: 0 0 12px var(--amber);
-}
-
-.hit-anchor-right {
-  left: 83.333%;
 }
 
 .hit-line strong {

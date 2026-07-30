@@ -195,7 +195,7 @@ describe('0.3.0 單畫面三軌 Rogue 介面', () => {
     }
     for (const marker of [
       '.track-target.is-close',
-      'translate(var(--queue-shift, 0px), -50%)',
+      'translate(var(--queue-shift, 0px), -15px)',
       '.track-target em',
       '.track-target.is-close small',
     ]) {
@@ -261,6 +261,27 @@ describe('0.3.0 單畫面三軌 Rogue 介面', () => {
       '.hit-anchor-center',
       '.track-target.current.is-approaching b',
       '.track-target.current.is-aligned b',
+    ]) {
+      expect(styles).toContain(marker)
+    }
+  })
+
+  it('判定座標只以 30px 方塊的中心定位，並讓中央準星直接使用三軌 grid 的中央欄', () => {
+    for (const marker of [
+      '固定 -15px（方塊高度 30px 的一半）',
+      '方塊幾何中心精確落在',
+    ]) {
+      expect(renderSource).toContain(marker)
+    }
+    for (const marker of [
+      'height: 30px;',
+      'translate(var(--queue-shift, 0px), -15px)',
+      'grid-template-columns: repeat(3, minmax(0, 1fr));',
+      '.hit-anchor {',
+      'justify-self: center;',
+      'align-self: center;',
+      'grid-template-rows: 2px;',
+      'transform: none;',
     ]) {
       expect(styles).toContain(marker)
     }
