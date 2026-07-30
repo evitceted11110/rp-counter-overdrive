@@ -420,6 +420,7 @@ button {
 }
 
 .track-field {
+  --judgement-line: 82%;
   position: absolute;
   inset: 48px 5% 10px;
   z-index: 6;
@@ -558,6 +559,28 @@ kbd {
   z-index: 12;
 }
 
+.track-target.current.is-approaching b {
+  box-shadow:
+    0 0 9px currentColor,
+    0 0 26px rgb(101 236 255 / 44%);
+}
+
+.track-target.current.is-aligned b {
+  border-color: #fff;
+  box-shadow:
+    0 0 0 4px rgb(101 236 255 / 24%),
+    0 0 28px currentColor,
+    0 0 54px rgb(101 236 255 / 48%);
+  filter: brightness(1.32);
+}
+
+.track-target.center.current.is-aligned b {
+  box-shadow:
+    0 0 0 4px rgb(255 189 89 / 26%),
+    0 0 28px currentColor,
+    0 0 54px rgb(255 189 89 / 52%);
+}
+
 .track-target.capacitor b,
 .track-target.capacitor-insurance b,
 .track-target.insurance b,
@@ -613,7 +636,7 @@ kbd {
 
 .hit-line {
   position: absolute;
-  top: 82%;
+  top: var(--judgement-line);
   right: 0;
   left: 0;
   z-index: 5;
@@ -624,15 +647,64 @@ kbd {
     0 0 22px var(--cyan);
 }
 
-.hit-line i {
+.hit-anchor {
   position: absolute;
-  top: -7px;
+  top: 50%;
+  width: 58px;
+  height: 38px;
+  transform: translate(-50%, -50%);
+  border-top: 1px solid rgb(223 250 255 / 72%);
+  border-bottom: 1px solid rgb(223 250 255 / 72%);
+  background: linear-gradient(90deg, transparent, rgb(101 236 255 / 16%), transparent);
+}
+
+.hit-anchor::before,
+.hit-anchor::after {
+  position: absolute;
+  top: 50%;
   left: 50%;
-  width: 16px;
-  aspect-ratio: 1;
-  border: 2px solid white;
-  transform: translateX(-50%) rotate(45deg);
+  content: '';
+  transform: translate(-50%, -50%);
+}
+
+.hit-anchor::before {
+  width: 9px;
+  height: 9px;
+  border: 2px solid #fff;
+  border-radius: 999px;
   background: #102731;
+  box-shadow: 0 0 12px #fff, 0 0 26px var(--cyan);
+}
+
+.hit-anchor::after {
+  width: 1px;
+  height: 30px;
+  background: linear-gradient(transparent, #dffaff 28%, #dffaff 72%, transparent);
+  box-shadow: 0 0 12px var(--cyan);
+}
+
+.hit-anchor-left {
+  left: 16.666%;
+}
+
+.hit-anchor-center {
+  left: 50%;
+  border-color: rgb(255 224 168 / 78%);
+  background: linear-gradient(90deg, transparent, rgb(255 189 89 / 18%), transparent);
+}
+
+.hit-anchor-center::before {
+  border-color: #fff0b2;
+  box-shadow: 0 0 12px #fff0b2, 0 0 26px var(--amber);
+}
+
+.hit-anchor-center::after {
+  background: linear-gradient(transparent, #fff0b2 28%, #fff0b2 72%, transparent);
+  box-shadow: 0 0 12px var(--amber);
+}
+
+.hit-anchor-right {
+  left: 83.333%;
 }
 
 .hit-line strong {

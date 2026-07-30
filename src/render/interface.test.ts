@@ -240,4 +240,29 @@ describe('0.3.0 單畫面三軌 Rogue 介面', () => {
       expect(styles).toContain(marker)
     }
   })
+
+  it('以目標方塊中心對準反擊線準星中心作為清楚的完美判定視覺基準', () => {
+    for (const marker of [
+      '中心對準反擊線＝完美',
+      '方塊中心對準反擊線準星中心時為完美',
+      'class="hit-anchor hit-anchor-left"',
+      'class="hit-anchor hit-anchor-center"',
+      'class="hit-anchor hit-anchor-right"',
+      'const top = `calc(var(--judgement-line)',
+      "'is-approaching'",
+      "'is-aligned'",
+    ]) {
+      expect(renderSource).toContain(marker)
+    }
+    for (const marker of [
+      '--judgement-line: 82%;',
+      'top: var(--judgement-line);',
+      '.hit-anchor {',
+      '.hit-anchor-center',
+      '.track-target.current.is-approaching b',
+      '.track-target.current.is-aligned b',
+    ]) {
+      expect(styles).toContain(marker)
+    }
+  })
 })

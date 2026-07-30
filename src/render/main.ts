@@ -171,7 +171,7 @@ root.innerHTML = `
   <section class="game-shell" tabindex="-1" aria-label="反擊超載遊戲">
     <header class="top-hud">
       <div class="brand-block">
-        <span class="eyebrow">三軌節奏隨機冒險 0.4.1</span>
+        <span class="eyebrow">三軌節奏隨機冒險 0.4.2</span>
         <strong>反擊超載</strong>
       </div>
       <div class="run-progress" aria-label="本局進度">
@@ -224,7 +224,12 @@ root.innerHTML = `
           <div class="lane lane-right"><span>右軌</span><kbd>→</kbd></div>
           <div class="beat-grid"></div>
           <div class="target-layer"></div>
-          <div class="hit-line"><i></i><strong>反擊線</strong></div>
+          <div class="hit-line" aria-label="判定線：方塊中心對準反擊線準星中心時為完美">
+            <span class="hit-anchor hit-anchor-left" aria-hidden="true"></span>
+            <span class="hit-anchor hit-anchor-center" aria-hidden="true"></span>
+            <span class="hit-anchor hit-anchor-right" aria-hidden="true"></span>
+            <strong>中心對準反擊線＝完美</strong>
+          </div>
         </div>
         <div class="impact-feedback-layer" aria-live="polite" aria-label="命中回饋"></div>
       </section>
@@ -687,7 +692,7 @@ function showChoice(): void {
   renderBuild()
   if (run.phase === 'choose-core') {
     choicePanel.innerHTML = `
-      <span class="choice-kicker">0.4.1 隨機冒險</span>
+      <span class="choice-kicker">0.4.2 隨機冒險</span>
       <h1>選擇本局的反擊規則</h1>
       <p>三個核心都不增加按鍵；它們會被動改寫你追逐的節奏。</p>
       <div class="choice-grid">${run.coreChoices.map((choice) => itemCard(choice, 'core')).join('')}</div>
@@ -1350,7 +1355,15 @@ function render(now: number): void {
           queueShiftPx: 0,
         }
         const delta = target.targetBeat - beat
-        const top = 82 - (delta / 7) * 76
+        // 方塊外層以 translateY(-50%) 定位；因此 delta = 0 時，方塊
+        // 的幾何中心會精確落在 --judgement-line，而非讓邊緣去碰判定線。
+        const top = `calc(var(--judgement-line) - ${(delta / 7) * 76}%)`
+        const approachClass =
+          index === 0 && delta <= 1.1 && delta > 0.13
+            ? 'is-approaching'
+            : index === 0 && Math.abs(delta) <= 0.13
+              ? 'is-aligned'
+              : ''
         const label =
           target.lane === 'left' ? '←' : target.lane === 'right' ? '→' : '空白'
         const closeLabel = layout.isClose
@@ -1359,7 +1372,7 @@ function render(now: number): void {
         const readableLane = laneLabel(target.lane)
         return `<div class="track-target ${target.lane} ${target.source} ${targetBuildClass(
           target,
-        )} ${layout.isClose ? 'is-close' : ''} ${index === 0 ? 'current' : ''}" data-order="${layout.order}" style="top:${top}%;--queue-shift:${layout.queueShiftPx}px" aria-label="第 ${layout.order} 個目標：${readableLane}，按 ${label}，${closeLabel}"><em>${layout.order}</em><b>${label}</b><small>${closeLabel}</small></div>`
+        )} ${layout.isClose ? 'is-close' : ''} ${index === 0 ? 'current' : ''} ${approachClass}" data-order="${layout.order}" style="top:${top};--queue-shift:${layout.queueShiftPx}px" aria-label="第 ${layout.order} 個目標：${readableLane}，按 ${label}，${closeLabel}；方塊中心對齊準星中心時為完美"><em>${layout.order}</em><b>${label}</b><small>${closeLabel}</small></div>`
       })
       .join('')
   } else {
